@@ -1,0 +1,52 @@
+{
+  "name": "@lingda/ledger",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "DSH 运行时账本：旁路计量 Agent 的 token 与成本，并据预算对下一次请求做决策",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "ledger",
+    "cost",
+    "token-usage"
+  ],
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-api-session-controller"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "bench": "node --expose-gc scripts/bench.mjs"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-llm": "*"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-llm": {
+      "optional": true
+    }
+  }
+}
