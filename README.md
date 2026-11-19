@@ -166,6 +166,7 @@ dsh --profile <已有profile> --patch <仓库>/mount/ledger-dev.overlay.yml
 - M1 契约核实 + 装配集成测试 + 热路径基准 ✅（4 处猜测全部落定，见 `docs/spikes.md`）
 - M2 `ledger_query` / `ctx.ledger` 真机接入 DSH 进程
 - M3 行为流水落盘（含 `ignorable` 事件回归）
+  - 已先行：右侧栏面板快照落盘 `lib/snapshot-file.js`（原子写 + 节流 + 超限截断，默认关闭）
 - M4 面板只读快照 + 成本 Top
 - M5 侧栏「账本」Tab 与设置卡片
   - 已落地 P0：`ledger.cost` 类型登记 + 引导页入口（空白右栏可见「账本」胶囊）+ 关闭清理；

@@ -297,3 +297,37 @@ ctx.slots.inject('sidebar.right.pane.tab', () =>
 需要 Typert remote（`ctx.remote.$mount` + 生成产物），属 M2。
 接入点已收敛到 `lib/client.js` 的 `createFetchView()` 一处：
 返回 `{ totals, sources, generatedAt }`，前端只格式化，不聚合、不补零。
+
+
+## C-3 面板数据通道：为什么用工作区文件而不是自定义 Remote（2026-11-19）
+
+三条候选，逐条探过：
+
+1. **自定义 Typert remote**
+   `ctx.typert.register(contribution)` 确实可以运行时注册（`dsh-typert-registry` README：
+   "其他所有者直接调用 `ctx.typert.register(contribution)`"）。但 contribution 需要
+   `{ package, face, schemas, model, invocations }`，其中 `model` 是**生成产物**结构、
+   `schemas` 是 zod 工厂；正常路径是 tsdown 生成（`dsh-typert-loader`）。
+   对纯 JS 独立仓库＝引入整套 TS 构建链。**结论：不划算，暂缓。**
+
+2. **`ctx.provide('ledger')` 直连**
+   服务暴露在 Host ctx 上，浏览器进程拿不到（两侧不共享 cordis Context）。
+   **结论：不可行。**
+
+3. **工作区文件（采用）**
+   宿主已把工作区文件能力暴露给浏览器：
+   `ctx.remote.workspaceFiles.{read,readBytes,stat,changes,list}`（sidebar-files 的
+   编译产物里就是 `remote.workspaceFiles.list` / `.changes`）。
+   Host 只写一个只读快照 JSON，面板读回即可——**零新增协议、零构建链**。
+   已知约束：`read` 按**绝对路径**取，客户端需要先知道路径；当前约定是
+   `<cwd>/.dsh/ledger/<sessionId>.json`，后续可从 session 的 workspace 根派生。
+
+实现：`lib/snapshot-file.js`
+- 原子写（写 `.tmp` 再 rename，面板读不到半截 JSON）；
+- 同会话按 `panel.intervalMs` 节流，热路径只多一次 Map 比较；
+- 超过 `panel.maxBytes` 降级为"合计 + Top 来源"，面板显示明细已截断；
+- 写盘失败吞掉并计数，绝不影响采集与预算；
+- `panel.enabled` 默认 **false**：写盘是外部副作用，不该由观测默认产生。
+
+已知未接：客户端 `createFetchView()` 还没改成读该文件（需要先定"绝对路径怎么给客户端"，
+候选是 session 的 workspace 根，或由 Host 在 `panel` 里回报 `dir`）。
