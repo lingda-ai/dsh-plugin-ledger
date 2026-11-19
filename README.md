@@ -167,5 +167,7 @@ dsh --profile <已有profile> --patch <仓库>/mount/ledger-dev.overlay.yml
 - M2 `ledger_query` / `ctx.ledger` 真机接入 DSH 进程
 - M3 行为流水落盘（含 `ignorable` 事件回归）
 - M4 面板只读快照 + 成本 Top
-- M5 侧栏「成本」Tab 与设置卡片
+- M5 侧栏「账本」Tab 与设置卡片
+  - 已落地 P0：`ledger.cost` 类型登记 + 引导页入口（空白右栏可见「账本」胶囊）+ 关闭清理；
+    正文（`sidebar.right.pane.tab`）待 `dsh-client-ui-slots` 契约核实后接入，见 `docs/spikes.md` 末节。
 

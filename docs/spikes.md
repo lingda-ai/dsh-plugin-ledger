@@ -235,3 +235,40 @@ M0 阶段代码里有 4 处用可能为空的取值兜底，属于"没核实前�
 3. `ctx.provide('ledger')` 在真实 profile 里是否与其他插件命名冲突。
 
 这三条只能靠 `dsh headless` 或 `dsh web` 起真进程验证，且要用真实模型凭据跑一轮对话。
+
+
+---
+
+## C-1 客户端右栏联动契约（2026-11-19 核实）
+
+读 `@deepseek-ai/dsh-client-ui-sidebar-right@0.1.7-rc.2` 的类型定义得到：
+
+**两条导航通道**
+- `ctx.sidebarRight.openTab(kind, { params })` —— params 由 `SidebarRightTabParamsMap`
+  声明合并扩展；无 seat 时显式失败，需先看 `ctx.sidebarRight.mounted`。
+- `ctx.sidebarRight.openResource('dsh-resource://<type>/…')` —— 按地址竞标，
+  `dsh-resource` 是唯一资源 scheme，`sidebar://…` 只是导航地址。
+
+**类型定义字段**：`id`（包名，唯一，同时是 body/title seat 的 key）、`kind`、
+`multiple?`、`keepMounted?`、`patterns?`、`priority?`（默认 `extension`）、
+`canOpen?`、`title(address)=>string`、`guide?: SidebarRightGuideEntry[]`。
+引导页 entry：`id` / `order` / `title()` / `description?()` / `icon?` / `commandId?`。
+
+**内置五类**：`files`（目录树，不渲染文件）、`text`（认领
+`dsh-resource://file/session/<sid>/<path>`，`fallback` 档）、`terminal`、`browser`
+（`params:{url}`，http/https 白名单）、`guide`（空白右栏自己的引导页）。
+
+**联动判定**
+- 对话/工具行 → 账本：可（`dsh-client-ui-chat` 已在用 `openTab`/`openResource`）。
+- 空白右栏 guide → 账本：可（往 `definition.guide` 投 entry，无需改宿主）。
+- 账本 → 文件：**默认不可**。entry 里没有文件路径，`tool/call` 载荷也不含；
+  只有开 `trace.enabled` 并从工具参数里抽路径才有地址可用。
+- 账本 → 浏览器/终端：同上，依赖 trace 里抓到 url/path 才有意义。
+- 文件/终端/浏览器 → 账本：不会发生（它们没有成本概念）。
+
+**未核实**：`@deepseek-ai/dsh-client-ui-slots` 不在本机
+（`node_modules/.pnpm` 下只有无关的 `cluster-key-slot`），`sidebar.right.pane.tab`
+的正文注册签名无法确认，因此 `lib/client.js` 只做身份登记，body 留 TODO。
+
+**性能约束**：`keepMounted` + 定时刷新会叠加（多会话常驻时同时打点），
+面板必须在 tab 非 active 时停掉刷新。
