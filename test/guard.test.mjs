@@ -62,3 +62,15 @@ test('未启用预算时 onRequest 原样返回配置', async () => {
   const out = await g.onRequest({ agent: { session: { id: 's' } } }, async () => cfg)
   assert.equal(out, cfg)
 })
+
+test('forget：会话销毁后重新武装，与"回滞"无关，也不会残留', () => {
+  let amount = 85
+  const store = { totals: () => ({ cost: { amount, currency: 'CNY', knownEntries: 1, unknownEntries: 0 }, tokens: null, entries: 1 }) }
+  const g = createBudgetGuard({ store, config: resolveConfig({ budget: { limit: 100, threshold: 0.8 } }) })
+
+  assert.ok(g.evaluate('s-x', 1, 1), '首次超阈值应给事实')
+  assert.equal(g.evaluate('s-x', 1, 2), null, 'armed 之后不该重复投递')
+
+  g.forget('s-x')
+  assert.ok(g.evaluate('s-x', 2, 1), 'forget 之后应能重新投递')
+})

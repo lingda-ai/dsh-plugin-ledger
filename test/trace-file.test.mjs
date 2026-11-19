@@ -3,7 +3,7 @@
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTraceSink, TRACE_SUFFIX } from '../lib/trace-file.js'
@@ -104,4 +104,20 @@ test('store 的 onTrace 钩子在 recordTrace 时被调用（同步、无 IO）'
   })
   store.recordTrace('s1', { eventType: 'chat' })
   assert.deepEqual(seen, [['s1', 'chat']])
+})
+
+test('remove：会话销毁后不再持有该会话的队列', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ledger-trace-rm-'))
+  try {
+    const sink = createTraceSink({ dir: '.dsh/ledger', rootOf: () => root, intervalMs: 500, maxBytes: 1 << 20 })
+    sink.append('s-rm', { a: 1 })
+    assert.equal(sink.stats.dropped, 0)
+    sink.remove('s-rm')
+    // 移除后再 flush：这个会话不该再被写
+    sink.flush()
+    assert.equal(existsSync(sink.filePathOf('s-rm')), false, 'remove 之后不该再落这个会话的文件')
+    sink.dispose()
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
 })

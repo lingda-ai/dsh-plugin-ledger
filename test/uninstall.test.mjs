@@ -112,3 +112,32 @@ test('U-2 流水落盘的定时器在 dispose 后必须停', async () => {
     rmSync(root, { recursive: true, force: true })
   }
 })
+
+test('U-3 会话销毁：armed 与流水队列一起释放（长跑不累积）', () => {
+  const root = mkdtempSync(join(tmpdir(), 'ledger-forget-'))
+  try {
+    const ctx = makeCtx()
+    const api = apply(ctx, {
+      budget: { limit: 0.01, threshold: 0.8 },
+      trace: { enabled: true, file: { enabled: true, maxBytes: 1 << 20 } },
+      panel: { enabled: true, dir: '.dsh/ledger', intervalMs: 0 },
+    })
+    const session = { id: 's-u3', header: { cwd: root } }
+    // 先花掉超过 80% 预算，触发一次投递（没有 agent 时 deliver 走不到，但 armed 会置位）
+    for (let i = 0; i < 3; i += 1) {
+      ctx.emit('session/event', session, {
+        type: 'assistant/message',
+        turn: 1,
+        step: i,
+        message: { source: { provider: 'deepseek', model: 'deepseek-v4-flash' } },
+        usage: { inputTokens: 5000, outputTokens: 200, cacheReadTokens: 0, cacheWriteTokens: 0 },
+      })
+    }
+
+    // 会话销毁后再来同一 id：状态若没释放，会表现为"这条会话不再投递/不再写盘"
+    ctx.emit('session/disposed', session)
+    assert.equal(api.stats().sessions, 0, '会话销毁后不该还留着账本')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
