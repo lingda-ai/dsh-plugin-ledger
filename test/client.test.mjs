@@ -272,11 +272,19 @@ const fullView = {
 }
 
 const ReactStub = { createElement }
-function htmlOf(view) {
+function htmlOf(view, options) {
   const Head = () => createElement('div', null, 'head')
-  const element = __internal.renderPayload(ReactStub, view, 'session-abc', createElement(Head))
+  const element = __internal.renderPayload(ReactStub, view, 'session-abc', createElement(Head), options)
   return renderToStaticMarkup(element)
 }
+
+/** 造 8 个来源：折叠阈值是 6，用它验证"展开/收起" */
+const manySources = Array.from({ length: 8 }, (_, i) => ({
+  plugin: `@lingzhi/tools/p${i}`,
+  amount: (8 - i) * 0.001,
+  entries: 1,
+  share: (8 - i) / 36,
+}))
 
 test('数据态：合计、四档金额、来源、明细、预算都画出来', () => {
   const html = htmlOf(fullView)
@@ -318,4 +326,25 @@ test('数据态：token 缺失时明确说明，不显示 0', () => {
   const html = htmlOf(view)
   assert.match(html, /没有可用的 token 计数/)
   assert.ok(!html.includes('0 tok · 含 reasoning'))
+})
+
+
+test('来源超过 6 个：默认只显示 6 条并给出展开按钮', () => {
+  const view = { ...fullView, sources: manySources, topSources: [], sourceCount: 8 }
+  const html = htmlOf(view)
+  assert.match(html, /展开全部 8/)
+  assert.match(html, /@lingzhi\/tools\/p5/)
+  assert.ok(!html.includes('@lingzhi/tools/p6'), '未展开时第 7 条不该出现')
+})
+
+test('展开后显示全部来源，按钮变「收起」', () => {
+  const view = { ...fullView, sources: manySources, topSources: [], sourceCount: 8 }
+  const html = htmlOf(view, { expanded: true })
+  assert.match(html, /收起/)
+  assert.match(html, /@lingzhi\/tools\/p7/)
+})
+
+test('来源不超过 6 个时不该出现展开按钮', () => {
+  const html = htmlOf(fullView)
+  assert.ok(!html.includes('展开全部'))
 })

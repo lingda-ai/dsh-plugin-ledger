@@ -23,11 +23,12 @@ function costOf(model, input, output, cacheRead) {
 
 const a = costOf('deepseek-v4-flash', 3200, 620, 4100)   // @lingzhi/tools/kb
 const b = costOf('deepseek-v4-pro', 6060, 842, 11560)    // @lingzhi/tools/hr
-const total = a.amount + b.amount
+// 真实会话里"最近 5 条"不是全部条目，所以总额要比这两条之和大
+const otherAmount = 0.006 + 0.004 + 0.003 + 0.0025 + 0.0015 + 0.0008
+const total = a.amount + b.amount + otherAmount
 // 三桶互斥（store 里每个条目只落一个桶），占比之和必须是 100%：
 // preview 数据若不自洽，读者会误以为面板算错了占比。
-const hrAmount = total * 0.62
-const sharedAmount = total - hrAmount - a.amount
+
 
 
 
@@ -42,7 +43,7 @@ const view = {
       knownEntries: 3,
       unknownEntries: 0,
       parts: {
-        input: a.parts.input + b.parts.input,
+        input: a.parts.input + b.parts.input + otherAmount,
         output: a.parts.output + b.parts.output,
         cacheRead: a.parts.cacheRead + b.parts.cacheRead,
         cacheWrite: 0,
@@ -53,11 +54,16 @@ const view = {
   },
   topSources: [],
   sources: [
-    { plugin: '@lingzhi/tools/hr', amount: hrAmount, entries: 1, share: hrAmount / total },
-    { plugin: 'shared:unknown', amount: sharedAmount, entries: 1, share: sharedAmount / total },
+    { plugin: '@lingzhi/tools/hr', amount: b.amount, entries: 1, share: b.amount / total },
     { plugin: '@lingzhi/tools/kb', amount: a.amount, entries: 1, share: a.amount / total },
+    { plugin: '@lingzhi/tools/food', amount: 0.006, entries: 2, share: 0.006 / total },
+    { plugin: '@lingzhi/tools/report', amount: 0.004, entries: 1, share: 0.004 / total },
+    { plugin: '@lingzhi/tools/portal', amount: 0.003, entries: 1, share: 0.003 / total },
+    { plugin: 'shared:unknown', amount: 0.0025, entries: 2, share: 0.0025 / total },
+    { plugin: 'unattributed', amount: 0.0015, entries: 1, share: 0.0015 / total },
+    { plugin: 'system:compaction', amount: 0.0008, entries: 1, share: 0.0008 / total },
   ],
-  sourceCount: 3,
+  sourceCount: 8,
   recent: [
     { at: 1763521920000, turn: 2, step: 2, kind: 'model', amount: a.amount, unknownReason: null, route: { provider: 'deepseek', model: 'deepseek-v4-flash' }, tokens: { input: 3200, output: 620, cacheRead: 4100, cacheWrite: 0 }, plugin: '@lingzhi/tools/kb', system: null },
     { at: 1763521860000, turn: 2, step: 1, kind: 'model', amount: b.amount, unknownReason: null, route: { provider: 'deepseek', model: 'deepseek-v4-pro' }, tokens: { input: 6060, output: 842, cacheRead: 11560, cacheWrite: 0 }, plugin: '@lingzhi/tools/hr', system: null },
@@ -69,7 +75,7 @@ const view = {
     { sessionId: 'session-c40ab2', amount: 0.0019, currency: 'CNY', entries: 2, lastAt: 1763519100000 },
   ],
   peak: { amount: b.amount, turn: 2, step: 1, kind: 'model', model: 'deepseek-v4-pro' },
-  budget: { limit: 0.03, currency: 'CNY', used: total, ratio: total / 0.03 },
+  budget: { limit: 0.05, currency: 'CNY', used: total, ratio: total / 0.05 },
 }
 
 const head = h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px 8px', borderBottom: '1px solid #eef1f5' } },
@@ -79,6 +85,7 @@ const head = h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, 
 )
 
 const panel = renderToStaticMarkup(__internal.renderPayload(React, view, sessionId, head))
+const panelExpanded = renderToStaticMarkup(__internal.renderPayload(React, view, sessionId, head, { expanded: true }))
 
 const html = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>账本面板 · 代码真实渲染</title>
 <style>
@@ -96,7 +103,11 @@ const html = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>账
     <div class="wrap" style="width:380px">${panel}</div>
   </div>
   <div>
-    <p class="label">② 右栏 300px（极窄，分栏用）</p>
+    <p class="label">② 点「展开全部 8」之后</p>
+    <div class="wrap" style="width:380px">${panelExpanded}</div>
+  </div>
+  <div>
+    <p class="label">③ 右栏 300px（极窄，分栏用）</p>
     <div class="wrap" style="width:300px">${panel}</div>
   </div>
 </div>
