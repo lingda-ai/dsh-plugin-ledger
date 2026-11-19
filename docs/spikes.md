@@ -340,3 +340,21 @@ ctx.slots.inject('sidebar.right.pane.tab', () =>
   不是 `process.cwd()`（多会话/多工作区各自独立）。
 - 落盘写**多行** JSON：`read` 按行分页，单行超长会被页宽截断。
 - 客户端对 `bytes > 1MB`、`eof=false`、非法 JSON 一律给可读原因，不静默空转。
+
+
+## C-4 流水落盘为什么不写在 recordTrace 里做 IO（2026-11-19）
+
+`recordTrace` 位于 `session/event` 的 post-commit 广播链上，是性能门禁实测的那条路径
+（`scripts/bench.mjs --gate`：稳定态 <6µs、抖动 <15µs）。同步 `appendFileSync` 会把它
+推到毫秒级，直接把门禁打穿。
+
+所以 `lib/trace-file.js` 的契约是：
+
+- `append()` 只做三件事：JSON.stringify、取队列、push。**零 IO**。
+- 合并写由 `setInterval(flush, intervalMs)` 负责，定时器 `unref()`，不为写流水拖住进程。
+- 队列按会话分、有上限（满了丢最旧并计数），内存有界。
+- 单文件超 `maxBytes` 就写一行 `{"truncated":true}` 再封口，后续直接丢。
+- 任何异常吞掉并计数（`stats.errors`），绝不向广播链抛。
+
+两层开关：`trace.enabled`（采不采）与 `trace.file.enabled`（落不落盘）分开，
+后者默认 false —— 落盘会把对话里调用的工具名与摘要写到工作区，属于额外的暴露面。
