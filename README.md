@@ -296,7 +296,10 @@ bash scripts/prepublish.sh
 ## 安装（DSH 侧外部插件）
 
 ```bash
-# 在 DSH 工作区里装（registry 地址待定，见文末"发布状态"）
+# 代码仓（已公开，可直接 clone/链接）
+git clone https://gitee.com/linzhengtong/dsh-plugin-ledger.git
+
+# npm 尚未发布（见"已知限制"），发布后这一行才可用
 dsh plugin add @lingda/ledger
 ```
 
@@ -336,7 +339,8 @@ dsh plugin add @lingda/ledger
 - **压缩省下的上下文不折算金额**：只报 token 差，理由见上。
 - **内置价表的日期是 `2026-11-19`**：厂商调价后需人工更新 `lib/pricing-table.js`，
   面板脚注会显示这个日期，不会假装"实时"。
-- **`private: true` 还没去掉**：registry 与 license 待定，现在别人装不上。
+- **npm 尚未发布**：代码仓已公开（`gitee.com/linzhengtong/dsh-plugin-ledger`，Apache-2.0），
+  但 `private: true` 保留、npm 未认证，所以现在还不能 `npm install`。
 
 ## 开发
 
