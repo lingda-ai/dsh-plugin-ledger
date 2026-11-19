@@ -260,14 +260,15 @@ const fullView = {
   ],
   sourceCount: 3,
   recent: [
-    { at: 1700000000000, kind: 'model', amount: 0.001716, unknownReason: null, route: { provider: 'deepseek', model: 'chat-mini' }, tokens: { input: 100, output: 50, cacheRead: 200, cacheWrite: 0 }, plugin: '@lingzhi/tools/kb', system: null },
-    { at: 1700000000000, kind: 'compaction', amount: null, unknownReason: 'no-rate', route: null, tokens: null, plugin: null, system: 'compaction' },
+    { at: 1700000000000, turn: 2, step: 2, kind: 'model', amount: 0.001716, unknownReason: null, route: { provider: 'deepseek', model: 'chat-mini' }, tokens: { input: 100, output: 50, cacheRead: 200, cacheWrite: 0 }, plugin: '@lingzhi/tools/kb', system: null },
+    { at: 1700000000000, turn: 2, step: 3, kind: 'compaction', amount: null, unknownReason: 'no-rate', route: null, tokens: null, plugin: null, system: 'compaction' },
   ],
   overview: [
     { sessionId: 'session-abc', amount: 0.015316, currency: 'CNY', entries: 7, lastAt: 1 },
     { sessionId: 'session-def', amount: 0.0042, currency: 'CNY', entries: 2, lastAt: 2 },
   ],
   budget: { limit: 0.03, currency: 'CNY', used: 0.015316, ratio: 0.5105 },
+  peak: { amount: 0.001716, turn: 2, step: 2, kind: 'model', model: 'chat-mini' },
 }
 
 const ReactStub = { createElement }
@@ -292,6 +293,8 @@ test('数据态：合计、四档金额、来源、明细、预算都画出来',
   assert.match(html, /sessio…def/)          // session-def 截断显示
   assert.match(html, /上下文压缩/)          // 压缩条目的系统标签
   assert.match(html, /内置官方价估算/)      // 金额按什么价算的，要写在面板上
+  assert.match(html, /最贵一步 ¥0.0017/)   // 治理时要能一眼看到哪一问最贵
+  assert.match(html, /T2·S2/)             // 明细带轮次，时间定位不了问题
 })
 
 test('数据态：未知费率条目显示原因码而不是 0', () => {

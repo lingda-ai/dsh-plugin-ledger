@@ -12,6 +12,7 @@ import {
   compactEntry,
   compactSession,
   safeFileName,
+  peakOf,
   buildPanelPayload,
   createSnapshotPublisher,
   readPanelFile,
@@ -213,4 +214,23 @@ test('payload 带 recent 与 overview，且都做了压缩', () => {
   assert.equal(payload.payload.recent.length, 1)
   assert.equal(payload.payload.recent[0].amount, null)
   assert.equal(payload.payload.overview[0].sessionId, 's2')
+})
+
+test('peakOf：只在已知金额里挑最大，未知不参与比较', () => {
+  const recent = [
+    { at: 1, turn: 1, step: 1, kind: 'model', amount: 0.002, unknownReason: null, route: { provider: 'deepseek', model: 'flash' } },
+    { at: 2, turn: 2, step: 1, kind: 'model', amount: null, unknownReason: 'no-rate', route: null },
+    { at: 3, turn: 2, step: 2, kind: 'model', amount: 0.009, unknownReason: null, route: { provider: 'deepseek', model: 'pro' } },
+    null,
+  ]
+  const peak = peakOf(recent)
+  assert.equal(peak.amount, 0.009)
+  assert.equal(peak.turn, 2)
+  assert.equal(peak.step, 2)
+  assert.equal(peak.model, 'pro')
+})
+
+test('peakOf：全是未知金额时返回 null，不拿 0 冒充', () => {
+  assert.equal(peakOf([{ amount: null, unknownReason: 'no-rate' }]), null)
+  assert.equal(peakOf([]), null)
 })

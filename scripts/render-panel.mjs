@@ -59,15 +59,16 @@ const view = {
   ],
   sourceCount: 3,
   recent: [
-    { at: 1763521920000, kind: 'model', amount: a.amount, unknownReason: null, route: { provider: 'deepseek', model: 'deepseek-v4-flash' }, tokens: { input: 3200, output: 620, cacheRead: 4100, cacheWrite: 0 }, plugin: '@lingzhi/tools/kb', system: null },
-    { at: 1763521860000, kind: 'model', amount: b.amount, unknownReason: null, route: { provider: 'deepseek', model: 'deepseek-v4-pro' }, tokens: { input: 6060, output: 842, cacheRead: 11560, cacheWrite: 0 }, plugin: '@lingzhi/tools/hr', system: null },
-    { at: 1763521800000, kind: 'compaction', amount: null, unknownReason: 'no-rate', route: null, tokens: null, plugin: null, system: 'compaction' },
+    { at: 1763521920000, turn: 2, step: 2, kind: 'model', amount: a.amount, unknownReason: null, route: { provider: 'deepseek', model: 'deepseek-v4-flash' }, tokens: { input: 3200, output: 620, cacheRead: 4100, cacheWrite: 0 }, plugin: '@lingzhi/tools/kb', system: null },
+    { at: 1763521860000, turn: 2, step: 1, kind: 'model', amount: b.amount, unknownReason: null, route: { provider: 'deepseek', model: 'deepseek-v4-pro' }, tokens: { input: 6060, output: 842, cacheRead: 11560, cacheWrite: 0 }, plugin: '@lingzhi/tools/hr', system: null },
+    { at: 1763521800000, turn: 1, step: 4, kind: 'compaction', amount: null, unknownReason: 'no-rate', route: null, tokens: null, plugin: null, system: 'compaction' },
   ],
   overview: [
     { sessionId, amount: total, currency: 'CNY', entries: 3, lastAt: 1763521920000 },
     { sessionId: 'session-77c1de', amount: 0.0204, currency: 'CNY', entries: 9, lastAt: 1763520900000 },
     { sessionId: 'session-c40ab2', amount: 0.0019, currency: 'CNY', entries: 2, lastAt: 1763519100000 },
   ],
+  peak: { amount: b.amount, turn: 2, step: 1, kind: 'model', model: 'deepseek-v4-pro' },
   budget: { limit: 0.03, currency: 'CNY', used: total, ratio: total / 0.03 },
 }
 
