@@ -261,7 +261,7 @@ const fullView = {
   ],
   sourceCount: 3,
   recent: [
-    { at: 1700000000000, turn: 2, step: 2, kind: 'model', amount: 0.001716, unknownReason: null, route: { provider: 'deepseek', model: 'chat-mini' }, tokens: { input: 100, output: 50, cacheRead: 200, cacheWrite: 0 }, plugin: '@lingzhi/tools/kb', system: null },
+    { at: 1700000000000, turn: 2, step: 2, kind: 'model', amount: 0.001716, contextChars: 18442, unknownReason: null, route: { provider: 'deepseek', model: 'chat-mini' }, tokens: { input: 100, output: 50, cacheRead: 200, cacheWrite: 0 }, plugin: '@lingzhi/tools/kb', system: null },
     { at: 1700000000000, turn: 2, step: 3, kind: 'compaction', amount: null, unknownReason: 'no-rate', route: null, tokens: null, plugin: null, system: 'compaction' },
   ],
   overview: [
@@ -307,6 +307,7 @@ test('数据态：合计、四档金额、来源、明细、预算都画出来',
   assert.match(html, /其中 1 条费率未知，合计偏低/)  // 有未知费率时合计只是下限
   assert.match(html, /占输入 63%/)         // 命中率：输入里有多少走了缓存
   assert.match(html, /还可约 5 次/)        // 比"已用 51%"更可行动
+  assert.match(html, /↑18\.4k 字符/)       // 工具结果体量：解释"这一步为什么贵"
 })
 
 test('数据态：未知费率条目显示原因码而不是 0', () => {

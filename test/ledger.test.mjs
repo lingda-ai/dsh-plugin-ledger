@@ -109,3 +109,37 @@ test('会话数达上限时淘汰最旧，内存有界', () => {
   assert.equal(store.sessionCount, 2)
   assert.equal(store.snapshot('a'), null)
 })
+
+
+test('tool/result 会记体积，下一步模型调用带上 contextChars', () => {
+  const { store, ledger } = harness()
+  const session = { id: 's-size' }
+  ledger.onSessionEvent(session, { type: 'tool/call', turn: 2, step: 1, callId: 'c1', name: 'tools.hr', arguments: '{}' })
+  ledger.onSessionEvent(session, {
+    type: 'tool/result',
+    turn: 2,
+    step: 1,
+    message: { role: 'tool', toolCallId: 'c1', content: [{ type: 'text', text: 'x'.repeat(18442) }] },
+  })
+  ledger.onSessionEvent(session, {
+    type: 'assistant/message',
+    turn: 2,
+    step: 2,
+    message: { source: { provider: 'deepseek', model: 'deepseek-v4-flash' } },
+    usage: { inputTokens: 9000, outputTokens: 200, cacheReadTokens: 0, cacheWriteTokens: 0 },
+  })
+
+  const snapshot = store.snapshot('s-size')
+  const model = snapshot.recent.find((e) => e.kind === 'model')
+  assert.equal(model.contextChars, 18442)
+})
+
+test('只记体积不记内容：账本条目里不该出现工具输出原文', () => {
+  const { store, ledger } = harness()
+  const session = { id: 's-privacy' }
+  const secret = 'TOP-SECRET-PAYLOAD'
+  ledger.onSessionEvent(session, { type: 'tool/call', turn: 1, step: 1, callId: 'c9', name: 'tools.fs', arguments: '{}' })
+  ledger.onSessionEvent(session, { type: 'tool/result', turn: 1, step: 1, message: { content: [{ type: 'text', text: secret }] } })
+  const dump = JSON.stringify(store.snapshot('s-privacy'))
+  assert.ok(!dump.includes(secret), '工具输出原文不得进入账本')
+})

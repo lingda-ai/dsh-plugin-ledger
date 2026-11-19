@@ -67,8 +67,8 @@ const view = {
   ],
   sourceCount: 8,
   recent: [
-    { at: 1763521920000, turn: 2, step: 2, kind: 'model', amount: a.amount, unknownReason: null, route: { provider: 'deepseek', model: 'deepseek-v4-flash' }, tokens: { input: 3200, output: 620, cacheRead: 4100, cacheWrite: 0 }, plugin: '@lingzhi/tools/kb', system: null },
-    { at: 1763521860000, turn: 2, step: 1, kind: 'model', amount: b.amount, unknownReason: null, route: { provider: 'deepseek', model: 'deepseek-v4-pro' }, tokens: { input: 6060, output: 842, cacheRead: 11560, cacheWrite: 0 }, plugin: '@lingzhi/tools/hr', system: null },
+    { at: 1763521920000, turn: 2, step: 2, kind: 'model', amount: a.amount, contextChars: 7920, unknownReason: null, route: { provider: 'deepseek', model: 'deepseek-v4-flash' }, tokens: { input: 3200, output: 620, cacheRead: 4100, cacheWrite: 0 }, plugin: '@lingzhi/tools/kb', system: null },
+    { at: 1763521860000, turn: 2, step: 1, kind: 'model', amount: b.amount, contextChars: 18442, unknownReason: null, route: { provider: 'deepseek', model: 'deepseek-v4-pro' }, tokens: { input: 6060, output: 842, cacheRead: 11560, cacheWrite: 0 }, plugin: '@lingzhi/tools/hr', system: null },
     { at: 1763521800000, turn: 1, step: 4, kind: 'compaction', amount: null, unknownReason: 'no-rate', route: null, tokens: null, plugin: null, system: 'compaction' },
   ],
   overview: [
