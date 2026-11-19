@@ -7,7 +7,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { apply, createFetchView } from '../lib/client.js'
+import { apply, createFetchView, __internal } from '../lib/client.js'
 
 function fakeCtx({ withSlots = false } = {}) {
   const log = []
@@ -85,15 +85,16 @@ test('有 slots 时，正文与标题各注册一次，key 是包名', async () 
   assert.equal(typeof components['sidebar.right.pane.tab.title'], 'function')
 })
 
-test('正文首屏：标题、截断的会话 id、未接通提示、刷新按钮', async () => {
+test('正文首屏：标题、截断的会话 id、刷新按钮', async () => {
   const { ctx, components } = fakeCtx({ withSlots: true })
   await apply(ctx)
   const Body = components['sidebar.right.pane.tab']
   const html = renderToStaticMarkup(createElement(Body, { sessionId: 'session-9f2a41' }))
   assert.match(html, /账本/)
   assert.match(html, /会话 sessio…a41/)
-  assert.match(html, /尚未接通/)
   assert.match(html, /刷新/)
+  // SSR 不跑 effect：首帧应是读取中，而不是假装有数据
+  assert.match(html, /正在读取/)
 })
 
 test('无会话时正文仍可渲染，不抛错', async () => {
@@ -125,6 +126,96 @@ test('无 sidebar-right 时静默退出，不抛错', async () => {
   await assert.doesNotReject(() => apply({ sidebarRightTabs: { register: 'not-a-fn' } }))
 })
 
-test('取数注入点当前返回 null（M2 接通前）', async () => {
-  assert.equal(await createFetchView({})('session-1'), null)
+// ---------------------------------------------------------------------------
+// 取数：相对路径 stat → absolutePath → read → JSON
+// ---------------------------------------------------------------------------
+function fakeRemote({ statResult, readResult, throwOn } = {}) {
+  return {
+    workspaceFiles: {
+      async stat(sessionId, path) {
+        if (throwOn === 'stat') throw new Error('stat boom')
+        return statResult ?? { ok: false }
+      },
+      async read(sessionId, path, range) {
+        if (throwOn === 'read') throw new Error('read boom')
+        assert.ok(range && range.limit > 0)
+        return readResult ?? { ok: false }
+      },
+    },
+  }
+}
+
+const payload = {
+  version: 1,
+  sessionId: 'session-abc',
+  generatedAt: '2026-11-19T10:00:00.000Z',
+  totals: { cost: { amount: 0.015316, currency: 'CNY', knownEntries: 6, unknownEntries: 0 }, tokens: { input: 9260, output: 1462, cacheRead: 15660, cacheWrite: 0, reasoning: 0, missing: 0 }, entries: 6 },
+  topSources: [],
+  sources: [{ plugin: '@lingzhi/tools/hr', amount: 0.005552, entries: 1, share: 0.362 }],
+  sourceCount: 5,
+}
+
+test('取数：stat 拿到 absolutePath，再 read 解析成 payload', async () => {
+  const remote = fakeRemote({
+    statResult: { ok: true, value: { absolutePath: '/ws/.dsh/ledger/session-abc.json', bytes: 2048 } },
+    readResult: { ok: true, value: { text: JSON.stringify(payload, null, 2), eof: true } },
+  })
+  const view = await createFetchView({ remote })('session-abc')
+  assert.equal(view.sessionId, 'session-abc')
+  assert.equal(view.totals.cost.amount, 0.015316)
+  assert.equal(view.sources.length, 1)
+})
+
+test('取数：文件不存在时返回 null（未落盘不是错误）', async () => {
+  const view = await createFetchView({ remote: fakeRemote({ statResult: { ok: false } }) })('session-abc')
+  assert.equal(view, null)
+})
+
+test('取数：无 workspaceFiles 通道时给明确原因', async () => {
+  const view = await createFetchView({})('session-abc')
+  assert.equal(view.error, '宿主未提供 workspaceFiles 通道')
+})
+
+test('取数：空 sessionId 不发起请求', async () => {
+  const view = await createFetchView({ remote: fakeRemote({}) })('')
+  assert.equal(view, null)
+})
+
+test('取数：非法 JSON / 未读完 / 过大 都返回可读原因', async () => {
+  const broken = await createFetchView({
+    remote: fakeRemote({
+      statResult: { ok: true, value: { absolutePath: '/ws/a.json' } },
+      readResult: { ok: true, value: { text: '{oops', eof: true } },
+    }),
+  })('s1')
+  assert.match(broken.error, /不是合法 JSON/)
+
+  const partial = await createFetchView({
+    remote: fakeRemote({
+      statResult: { ok: true, value: { absolutePath: '/ws/a.json' } },
+      readResult: { ok: true, value: { text: '{}', eof: false } },
+    }),
+  })('s1')
+  assert.match(partial.error, /过长/)
+
+  const huge = await createFetchView({
+    remote: fakeRemote({ statResult: { ok: true, value: { absolutePath: '/ws/a.json', bytes: 2 * 1024 * 1024 } } }),
+  })('s1')
+  assert.match(huge.error, /过大/)
+})
+
+test('取数：通道抛错被包成一句话，不向外抛', async () => {
+  const view = await createFetchView({ remote: fakeRemote({ throwOn: 'stat' }) })('s1')
+  assert.equal(view.error, 'stat boom')
+})
+
+test('格式化口径：金额、千分位、占比', () => {
+  const { formatAmount, formatTokens, formatShare } = __internal
+  assert.equal(formatAmount(0.015316, 'CNY'), '¥0.0153')
+  assert.equal(formatAmount(null, 'CNY'), '—')
+  assert.equal(formatAmount(0.5, 'USD'), '0.5000 USD')
+  assert.equal(formatTokens(9260), '9,260')
+  assert.equal(formatTokens(undefined), '—')
+  assert.equal(formatShare(0.362), '36.2%')
+  assert.equal(formatShare(undefined), '—')
 })

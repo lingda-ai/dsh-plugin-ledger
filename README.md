@@ -160,6 +160,25 @@ dsh --profile <已有profile> --patch <仓库>/mount/ledger-dev.overlay.yml
 唯一例外是预算事实要用的 `createUserMessage`，走可选 peer + 动态 import，
 拿不到就自动降级为"只经 ledger_query 拉取"。
 
+## 右侧栏面板
+
+面板 = DSH 右侧栏的一个 tab（kind `ledger.cost`），数据来自 Host 写的**只读快照**：
+
+```yaml
+- id: lingda-ledger
+  name: '@lingda/ledger'
+  config:
+    panel:
+      enabled: true          # 默认关闭：写盘是外部副作用
+      dir: .dsh/ledger       # 相对会话工作区根
+      intervalMs: 3000       # 同会话最小落盘间隔
+      maxBytes: 262144       # 超限降级为合计 + Top 来源
+```
+
+- 文件：`<session cwd>/.dsh/ledger/<safeSessionId>.json`，原子写（`.tmp` → rename）。
+- 读取：浏览器侧 `workspaceFiles` remote，相对路径 `stat` 换绝对路径再 `read`。
+- 打不开面板时先看 `ctx.ledger.panel`：`{enabled, dir, stats}`。
+
 ## 里程碑
 
 - M0 骨架 + 计价/归因/存储/守卫/工具 + 探针报告 ✅

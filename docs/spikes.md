@@ -329,5 +329,14 @@ ctx.slots.inject('sidebar.right.pane.tab', () =>
 - 写盘失败吞掉并计数，绝不影响采集与预算；
 - `panel.enabled` 默认 **false**：写盘是外部副作用，不该由观测默认产生。
 
-已知未接：客户端 `createFetchView()` 还没改成读该文件（需要先定"绝对路径怎么给客户端"，
-候选是 session 的 workspace 根，或由 Host 在 `panel` 里回报 `dir`）。
+**取数通道已接通（同日闭环）**：客户端不需要知道绝对路径。
+`workspaceFiles.stat(sessionId, '<相对路径>')` 的相对路径以 **Session 的 cwd 为基准**（
+`index.d.ts`："The selected Session header supplies the base for relative paths"），
+返回值带 `absolutePath`；再 `read(sessionId, absolutePath, {offset,limit})` 拿到文本即可。
+于是链路是：相对路径 `stat` → `absolutePath` → `read` → `JSON.parse`，零配置。
+
+配套约束：
+- Host 落盘按**会话自己的** `session.header.cwd` 拼 `<cwd>/.dsh/ledger/`，
+  不是 `process.cwd()`（多会话/多工作区各自独立）。
+- 落盘写**多行** JSON：`read` 按行分页，单行超长会被页宽截断。
+- 客户端对 `bytes > 1MB`、`eof=false`、非法 JSON 一律给可读原因，不静默空转。

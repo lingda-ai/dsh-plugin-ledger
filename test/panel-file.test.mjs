@@ -115,3 +115,27 @@ test('写坏的文件读回 null，不抛错', () => {
   assert.equal(readPanelFile(bad), null)
   assert.equal(readPanelFile(join(dir, 'missing.json')), null)
 })
+
+test('相对目录 + rootOf：每个会话写进自己的工作区根', () => {
+  const base = tmpDir()
+  const roots = { s1: join(base, 'ws1'), s2: join(base, 'ws2') }
+  const pub = createSnapshotPublisher({
+    dir: '.dsh/ledger',
+    snapshot: () => ({ ...snap, sessionId: 's1' }),
+    sources: () => srcs,
+    rootOf: (sessionId) => roots[sessionId] ?? base,
+  })
+  assert.equal(pub.publishNow('s1'), true)
+  assert.equal(pub.publishNow('s2'), true)
+  assert.equal(existsSync(join(roots.s1, '.dsh', 'ledger', 's1.json')), true)
+  assert.equal(existsSync(join(roots.s2, '.dsh', 'ledger', 's2.json')), true)
+})
+
+test('落盘是多行 JSON：浏览器按行分页读得动', () => {
+  const dir = tmpDir()
+  const pub = createSnapshotPublisher({ dir, snapshot: () => snap, sources: () => srcs })
+  pub.publishNow('session-abc')
+  const text = readFileSync(join(dir, 'session-abc.json'), 'utf8')
+  assert.ok(text.split('\n').length > 5, '应至少写成一个可分行读取的对象')
+  assert.ok(JSON.parse(text).totals)
+})
