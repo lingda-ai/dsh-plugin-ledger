@@ -219,3 +219,11 @@ test('格式化口径：金额、千分位、占比', () => {
   assert.equal(formatShare(0.362), '36.2%')
   assert.equal(formatShare(undefined), '—')
 })
+
+test('来源桶显示名：保留 key 不原样露给用户', () => {
+  const { sourceLabel } = __internal
+  assert.equal(sourceLabel('shared:unknown'), '多个插件共同（拆不开）')
+  assert.equal(sourceLabel('unattributed'), '未归因')
+  assert.equal(sourceLabel('system:compaction'), '上下文压缩')
+  assert.equal(sourceLabel('@lingzhi/tools/hr'), '@lingzhi/tools/hr')
+})

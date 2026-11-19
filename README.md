@@ -179,6 +179,36 @@ dsh --profile <已有profile> --patch <仓库>/mount/ledger-dev.overlay.yml
 - 读取：浏览器侧 `workspaceFiles` remote，相对路径 `stat` 换绝对路径再 `read`。
 - 打不开面板时先看 `ctx.ledger.panel`：`{enabled, dir, stats}`。
 
+## 来源桶口径
+
+面板与 `ledger_query` 的 `sources` 里，三个保留 key 各有确定含义：
+
+| key | 含义 |
+|---|---|
+| `shared:unknown` | 多个**已知** owner 共同贡献上下文，确实拆不到单个插件 |
+| `unattributed` | 完全没有归因信号（无 owner、无映射）——不是"拆不开"，是"没来源" |
+| `system:compaction` | 上下文压缩产生的调用，不属于任何插件 |
+
+面板会把这几个 key 翻成人话再显示，不把原始字符串露给用户。
+
+## 发布前检查
+
+```bash
+bash scripts/prepublish.sh
+```
+
+闸门依次检查：工作区干净 → 分支 main → `scripts/ci.sh` 全通过 → `npm pack` 内容只有
+`package.json` / `README.md` / `cordis.patch.yml` / `lib/` → 打印版本与 `private` 状态。
+
+两点由 owner 决定，代码不代劳：
+- `private` 目前是 `true`，真要发 registry 需改成 `false` 并确认目标 registry；
+- 仓库尚未配置 `git remote`（推到哪个组织需要明确地址）。
+- `license` 未声明——开源/商业由产品决策定，脚本只如实打印。
+
+**不加 slots 到 `dsh.client.inject` 的原因**：`inject` 是"必需服务"，写进去以后
+没有 slots 的宿主（CLI 形态）会直接不启动插件，连 tab 类型都注册不上。
+现在的写法是可选访问：有 `ctx.slots` 就挂正文，没有就只登记类型——降级更稳。
+
 ## 里程碑
 
 - M0 骨架 + 计价/归因/存储/守卫/工具 + 探针报告 ✅
