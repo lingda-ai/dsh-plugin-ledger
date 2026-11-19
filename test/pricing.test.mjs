@@ -37,3 +37,28 @@ test('裸 model 也能命中，provider/* 作为兜底', () => {
   assert.ok(p.rateFor('anything', 'chat'))
   assert.equal(p.rateFor('p', 'other').input, 2)
 })
+
+test('四档金额之和等于合计金额（不重不漏）', () => {
+  const pricing = createPricing({
+    currency: 'CNY',
+    rates: { 'deepseek/chat': { input: 1e-6, output: 2e-6, cacheRead: 2e-7, cacheWrite: 1.2e-6 } },
+  })
+  const usage = { inputTokens: 9260, outputTokens: 1462, cacheReadTokens: 15660, cacheWriteTokens: 0, reasoningTokens: 300, complete: true }
+  const cost = pricing.costOf(usage, { provider: 'deepseek', model: 'chat' })
+  assert.equal(cost.kind, 'known')
+  const sum = cost.parts.input + cost.parts.output + cost.parts.cacheRead + cost.parts.cacheWrite
+  assert.ok(Math.abs(sum - cost.amount) < 1e-12)
+  assert.ok(Math.abs(cost.parts.input - 9260 * 1e-6) < 1e-12)
+  // reasoning 不重复计价：output 档只按 outputTokens 计
+  assert.ok(Math.abs(cost.parts.output - 1462 * 2e-6) < 1e-12)
+})
+
+test('费率缺失时 unknown 不带 parts（不给半截数字）', () => {
+  const pricing = createPricing({ rates: {} })
+  const cost = pricing.costOf(
+    { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0, complete: true },
+    { provider: 'x', model: 'y' },
+  )
+  assert.equal(cost.kind, 'unknown')
+  assert.equal(cost.parts, undefined)
+})
