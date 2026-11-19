@@ -34,7 +34,9 @@ try {
   tools = await import(entry)
 } catch (error) {
   console.log(`SKIP 未找到 DSH 工具运行时（${PNPM}）：${error.message}`)
-  process.exit(0)
+  // 退出码 2 = 本机没有运行时（SKIP）。它绝不能和"通过"混为一谈：
+  // 发布闸门要求这两个冒烟必须真的跑过，否则等于没验证契约。
+  process.exit(2)
 }
 
 const fakeStore = {

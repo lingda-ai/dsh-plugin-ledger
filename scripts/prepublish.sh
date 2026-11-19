@@ -50,5 +50,18 @@ console.log("private  ", p.private === true ? "true（发布前需由 owner 改�
 console.log("license  ", p.license ?? "(未声明，由发布决策确定)")
 '
 
+echo "== 6. 契约冒烟必须真跑过（SKIP = 未验证，不许发）=="
+for script in scripts/smoke-registry.mjs scripts/smoke-dsh.mjs; do
+  rc=0
+  node "$script" >/tmp/ledger-smoke.log 2>&1 && rc=0 || rc=$?
+  if [ "$rc" -eq 2 ]; then
+    echo "FAIL  $script 在本机 SKIP（没有 DSH 运行时），契约等于没验证"
+    tail -3 /tmp/ledger-smoke.log
+    exit 1
+  fi
+  [ "$rc" -eq 0 ] || { echo "FAIL  $script 未通过"; tail -10 /tmp/ledger-smoke.log; exit 1; }
+  echo "PASS  $script 真跑过"
+done
+
 echo
 echo "结论：代码侧已可发布；远程与 registry 由 owner 决定（本仓库未配置 remote）。"

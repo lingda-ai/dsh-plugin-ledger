@@ -17,7 +17,9 @@ try {
   llm = await import(`${ROOT}/@deepseek-ai/dsh-llm/lib/index.js`)
 } catch (error) {
   console.log(`SKIP 未找到 DSH 运行时（${ROOT}/@deepseek-ai/dsh-llm）：${error.message}`)
-  process.exit(0)
+  // 退出码 2 = 本机没有运行时（SKIP）。它绝不能和"通过"混为一谈：
+  // 发布闸门要求这两个冒烟必须真的跑过，否则等于没验证契约。
+  process.exit(2)
 }
 
 assert.equal(typeof llm.createUserMessage, 'function', 'CLM-1: dsh-llm 必须导出 createUserMessage')
