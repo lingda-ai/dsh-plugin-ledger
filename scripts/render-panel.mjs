@@ -37,11 +37,13 @@ const view = {
   sessionId,
   generatedAt: '2026-11-19T13:52:00.000Z',
   totals: {
+    // 面板口径的派生字段，真实链路由 withPanelTotals 算
+    cacheHitRate: 15660 / (9260 + 15660),
     cost: {
       amount: total,
       currency: 'CNY',
       knownEntries: 3,
-      unknownEntries: 0,
+      unknownEntries: 1,
       parts: {
         input: a.parts.input + b.parts.input + otherAmount,
         output: a.parts.output + b.parts.output,
@@ -75,7 +77,7 @@ const view = {
     { sessionId: 'session-c40ab2', amount: 0.0019, currency: 'CNY', entries: 2, lastAt: 1763519100000 },
   ],
   peak: { amount: b.amount, turn: 2, step: 1, kind: 'model', model: 'deepseek-v4-pro' },
-  budget: { limit: 0.05, currency: 'CNY', used: total, ratio: total / 0.05 },
+  budget: { limit: 0.05, currency: 'CNY', used: total, ratio: total / 0.05, remaining: 0.05 - total, perCall: total / 3, callsLeft: Math.max(0, Math.floor((0.05 - total) / (total / 3))) },
 }
 
 const head = h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px 8px', borderBottom: '1px solid #eef1f5' } },

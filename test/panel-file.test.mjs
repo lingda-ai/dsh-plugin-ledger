@@ -13,6 +13,7 @@ import {
   compactSession,
   safeFileName,
   peakOf,
+  withPanelTotals,
   buildPanelPayload,
   createSnapshotPublisher,
   readPanelFile,
@@ -233,4 +234,31 @@ test('peakOf：只在已知金额里挑最大，未知不参与比较', () => {
 test('peakOf：全是未知金额时返回 null，不拿 0 冒充', () => {
   assert.equal(peakOf([{ amount: null, unknownReason: 'no-rate' }]), null)
   assert.equal(peakOf([]), null)
+})
+
+
+test('withPanelTotals：命中率分母只算未命中输入 + 命中输入', () => {
+  const t = withPanelTotals({ tokens: { input: 9260, output: 1462, cacheRead: 15660, cacheWrite: 0, reasoning: 312 } })
+  assert.equal(t.cacheHitRate, 15660 / 24920) // 缓存写不参与分母
+  assert.equal(t.tokens.input, 9260)           // 原字段不动
+})
+
+test('withPanelTotals：没有 token 计数时命中率给 null，不给 0', () => {
+  assert.equal(withPanelTotals(null), null)
+  assert.equal(withPanelTotals({ tokens: null }).cacheHitRate, null)
+})
+
+test('normalizeBudget：按已知条目均价算"还可约几次"，未知条目不算进均价', () => {
+  const budget = normalizeBudget(
+    { limit: 0.03, currency: 'CNY' },
+    { cost: { amount: 0.015316, knownEntries: 6, unknownEntries: 2 } },
+  )
+  assert.equal(budget.perCall, 0.015316 / 6)
+  assert.equal(budget.remaining, 0.03 - 0.015316)
+  assert.equal(budget.callsLeft, 5) // floor(0.014684 / 0.0025527) = 5
+})
+
+test('normalizeBudget：没有已知条目时不算均价（避免用假数预测）', () => {
+  const budget = normalizeBudget({ limit: 0.03 }, { cost: { amount: null, knownEntries: 0 } })
+  assert.equal(budget.callsLeft, null)
 })

@@ -242,6 +242,7 @@ const fullView = {
   sessionId: 'session-abc',
   generatedAt: '2026-11-19T10:00:00.000Z',
   totals: {
+    cacheHitRate: 0.6284,
     cost: {
       amount: 0.015316,
       currency: 'CNY',
@@ -267,7 +268,7 @@ const fullView = {
     { sessionId: 'session-abc', amount: 0.015316, currency: 'CNY', entries: 7, lastAt: 1 },
     { sessionId: 'session-def', amount: 0.0042, currency: 'CNY', entries: 2, lastAt: 2 },
   ],
-  budget: { limit: 0.03, currency: 'CNY', used: 0.015316, ratio: 0.5105 },
+  budget: { limit: 0.03, currency: 'CNY', used: 0.015316, ratio: 0.5105, callsLeft: 5 },
   peak: { amount: 0.001716, turn: 2, step: 2, kind: 'model', model: 'chat-mini' },
 }
 
@@ -303,6 +304,9 @@ test('数据态：合计、四档金额、来源、明细、预算都画出来',
   assert.match(html, /内置官方价估算/)      // 金额按什么价算的，要写在面板上
   assert.match(html, /最贵一步 ¥0.0017/)   // 治理时要能一眼看到哪一问最贵
   assert.match(html, /T2·S2/)             // 明细带轮次，时间定位不了问题
+  assert.match(html, /其中 1 条费率未知，合计偏低/)  // 有未知费率时合计只是下限
+  assert.match(html, /占输入 63%/)         // 命中率：输入里有多少走了缓存
+  assert.match(html, /还可约 5 次/)        // 比"已用 51%"更可行动
 })
 
 test('数据态：未知费率条目显示原因码而不是 0', () => {
@@ -347,4 +351,25 @@ test('展开后显示全部来源，按钮变「收起」', () => {
 test('来源不超过 6 个时不该出现展开按钮', () => {
   const html = htmlOf(fullView)
   assert.ok(!html.includes('展开全部'))
+})
+
+
+test('全部条目都有费率时不出现"合计偏低"警示', () => {
+  const view = { ...fullView, totals: { ...fullView.totals, cost: { ...fullView.totals.cost, unknownEntries: 0 } } }
+  const html = htmlOf(view)
+  assert.ok(!html.includes('合计偏低'))
+})
+
+test('余量不足一问时说人话，不说"还可约 0 次"', () => {
+  const view = { ...fullView, budget: { ...fullView.budget, callsLeft: 0 } }
+  const html = htmlOf(view)
+  assert.match(html, /余量不足一问/)
+  assert.ok(!html.includes('还可约 0 次'))
+})
+
+test('没有 callsLeft（预算未启用或无已知条目）时不编造"还能问几次"', () => {
+  const view = { ...fullView, budget: { ...fullView.budget, callsLeft: null } }
+  const html = htmlOf(view)
+  assert.ok(!html.includes('还可约'))
+  assert.match(html, /已用 51%/)
 })
