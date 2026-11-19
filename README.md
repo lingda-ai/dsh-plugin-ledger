@@ -2,8 +2,9 @@
 
 DSH 运行时账本插件（生态发布名 `dsh-plugin-ledger`，中文名「账本」）。
 
-独立仓库（不放在 `lingzhi` 单仓的 `packages/` 下）。DSH 侧以外部插件方式接入：
-`dsh.bundle.patch` 指向本仓库的 `cordis.patch.yml`，`dsh.client` 声明浏览器半的注入依赖。
+代码仓：`dsh-plugin-ledger`（独立仓库，不放在 `lingzhi` 单仓的 `packages/` 下）。
+DSH 侧以外部插件方式接入：`dsh.bundle.patch` 指向本仓库的 `cordis.patch.yml`，
+`dsh.client` 声明浏览器半的注入依赖。
 
 旁路观测 Agent 的 token 与成本，并把"超预算"变成对下一次请求的**决策**，
 而不是对本次请求的**污染**。
