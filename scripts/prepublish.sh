@@ -23,7 +23,7 @@ bash scripts/ci.sh >/tmp/ledger-ci.log 2>&1 || { echo "FAIL  ci.sh 未通过，�
 echo "PASS  ci.sh 全通过"
 
 echo "== 4. 打包内容必须只有白名单 =="
-allowed="package.json README.md cordis.patch.yml lib/"
+allowed="package.json README.md LICENSE cordis.patch.yml lib/"
 bad="$(npm pack --dry-run --json 2>/dev/null | node -e '
 let raw=""
 process.stdin.on("data", d => raw += d).on("end", () => {
