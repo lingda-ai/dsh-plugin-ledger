@@ -227,3 +227,91 @@ test('来源桶显示名：保留 key 不原样露给用户', () => {
   assert.equal(sourceLabel('system:compaction'), '上下文压缩')
   assert.equal(sourceLabel('@lingzhi/tools/hr'), '@lingzhi/tools/hr')
 })
+
+test('时钟格式化：毫秒时间戳 → HH:MM，缺失给 —', () => {
+  const { formatClock } = __internal
+  assert.equal(formatClock(undefined), '—')
+  assert.match(formatClock(Date.now()), /^\d{2}:\d{2}$/)
+})
+
+// ---------------------------------------------------------------------------
+// 数据态渲染：把渲染当纯函数，才能断言金额/明细/预算真的画出来了
+// ---------------------------------------------------------------------------
+const fullView = {
+  version: 1,
+  sessionId: 'session-abc',
+  generatedAt: '2026-11-19T10:00:00.000Z',
+  totals: {
+    cost: {
+      amount: 0.015316,
+      currency: 'CNY',
+      knownEntries: 6,
+      unknownEntries: 1,
+      parts: { input: 0.00926, output: 0.002924, cacheRead: 0.003132, cacheWrite: 0 },
+    },
+    tokens: { input: 9260, output: 1462, cacheRead: 15660, cacheWrite: 0, reasoning: 100, missing: 0 },
+    entries: 7,
+  },
+  topSources: [{ plugin: '@lingzhi/tools/hr', amount: 0.005552, entries: 1, share: 0.362 }],
+  sources: [
+    { plugin: '@lingzhi/tools/hr', amount: 0.005552, entries: 1, share: 0.362 },
+    { plugin: 'shared:unknown', amount: 0.005412, entries: 2, share: 0.353 },
+    { plugin: 'unattributed', amount: 0.001, entries: 1, share: 0.065 },
+  ],
+  sourceCount: 3,
+  recent: [
+    { at: 1700000000000, kind: 'model', amount: 0.001716, unknownReason: null, route: { provider: 'deepseek', model: 'chat-mini' }, tokens: { input: 100, output: 50, cacheRead: 200, cacheWrite: 0 }, plugin: '@lingzhi/tools/kb', system: null },
+    { at: 1700000000000, kind: 'compaction', amount: null, unknownReason: 'no-rate', route: null, tokens: null, plugin: null, system: 'compaction' },
+  ],
+  overview: [
+    { sessionId: 'session-abc', amount: 0.015316, currency: 'CNY', entries: 7, lastAt: 1 },
+    { sessionId: 'session-def', amount: 0.0042, currency: 'CNY', entries: 2, lastAt: 2 },
+  ],
+  budget: { limit: 0.03, currency: 'CNY', used: 0.015316, ratio: 0.5105 },
+}
+
+const ReactStub = { createElement }
+function htmlOf(view) {
+  const Head = () => createElement('div', null, 'head')
+  const element = __internal.renderPayload(ReactStub, view, 'session-abc', createElement(Head))
+  return renderToStaticMarkup(element)
+}
+
+test('数据态：合计、四档金额、来源、明细、预算都画出来', () => {
+  const html = htmlOf(fullView)
+  assert.match(html, /¥0.0153/)            // 合计
+  assert.match(html, /¥0.0093/)            // 未缓存输入
+  assert.match(html, /¥0.0029/)            // 输出
+  assert.match(html, /¥0.0031/)            // 缓存命中
+  assert.match(html, /预算 ¥0.0300/)
+  assert.match(html, /已用 51%/)
+  assert.match(html, /多个插件共同（拆不开）/)
+  assert.match(html, /未归因/)
+  assert.match(html, /deepseek\/chat-mini/)
+  assert.match(html, /其他会话/)
+  assert.match(html, /sessio…def/)          // session-def 截断显示
+  assert.match(html, /上下文压缩/)          // 压缩条目的系统标签
+})
+
+test('数据态：未知费率条目显示原因码而不是 0', () => {
+  const html = htmlOf(fullView)
+  assert.match(html, /— no-rate/)
+  // 未知费率条目不该被渲染成 0
+  assert.ok(!html.includes('¥0.0000  no-rate'))
+})
+
+test('数据态：没有预算、没有明细、没有其他会话时不画空块', () => {
+  const view = { ...fullView, budget: null, recent: [], overview: [], sources: [], topSources: [], sourceCount: null }
+  const html = htmlOf(view)
+  assert.ok(!html.includes('预算 ¥'))
+  assert.ok(!html.includes('最近'))
+  assert.ok(!html.includes('其他会话'))
+  assert.match(html, /还没有可归因的来源/)
+})
+
+test('数据态：token 缺失时明确说明，不显示 0', () => {
+  const view = { ...fullView, totals: { ...fullView.totals, tokens: null } }
+  const html = htmlOf(view)
+  assert.match(html, /没有可用的 token 计数/)
+  assert.ok(!html.includes('0 tok · 含 reasoning'))
+})

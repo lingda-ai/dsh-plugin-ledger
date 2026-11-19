@@ -9,6 +9,8 @@ import { join } from 'node:path'
 import {
   SNAPSHOT_VERSION,
   normalizeBudget,
+  compactEntry,
+  compactSession,
   safeFileName,
   buildPanelPayload,
   createSnapshotPublisher,
@@ -164,4 +166,51 @@ test('payload 里带上预算（未启用时为 null）', () => {
   assert.equal(off.payload.budget, null)
   const on = buildPanelPayload(snap, srcs, { budget: { limit: 0.03, currency: 'CNY' } })
   assert.equal(on.payload.budget.limit, 0.03)
+})
+
+test('明细压缩：去掉 trace/callId，金额未知给原因而不是 0', () => {
+  const known = compactEntry({
+    at: 1700000000000,
+    turn: 2,
+    step: 3,
+    kind: 'model',
+    callId: 'c1',
+    usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 100, cacheWriteTokens: 0, reasoningTokens: 7, missing: 0, complete: true },
+    cost: { kind: 'known', amount: 0.01, parts: { input: 0.01, output: 0, cacheRead: 0, cacheWrite: 0 }, currency: 'CNY', tier: 'exact' },
+    attribution: { primary: { plugin: 'p', confidence: 'exact' } },
+    route: { provider: 'deepseek', model: 'chat' },
+    trace: { huge: true },
+  })
+  assert.equal(known.amount, 0.01)
+  assert.equal(known.unknownReason, null)
+  assert.equal(known.plugin, 'p')
+  assert.equal(known.trace, undefined)
+  assert.equal(known.callId, undefined)
+  assert.equal(known.tokens.input, 10)
+
+  const unknown = compactEntry({ kind: 'model', cost: { kind: 'unknown', reason: 'no-rate' }, attribution: { primary: null } })
+  assert.equal(unknown.amount, null)
+  assert.equal(unknown.unknownReason, 'no-rate')
+})
+
+test('会话对比项只保留四个字段', () => {
+  const row = compactSession({
+    sessionId: 's2',
+    cost: { amount: 0.02, currency: 'CNY', knownEntries: 3, unknownEntries: 1 },
+    tokens: { input: 1 },
+    entries: 4,
+    lastAt: 123,
+  })
+  assert.deepEqual(row, { sessionId: 's2', amount: 0.02, currency: 'CNY', entries: 4, lastAt: 123 })
+})
+
+test('payload 带 recent 与 overview，且都做了压缩', () => {
+  const payload = buildPanelPayload(
+    { ...snap, recent: [{ kind: 'model', cost: { kind: 'unknown', reason: 'no-rate' }, attribution: { primary: null } }] },
+    srcs,
+    { overview: [{ sessionId: 's2', cost: { amount: 0.02, currency: 'CNY' }, entries: 2, lastAt: 9 }] },
+  )
+  assert.equal(payload.payload.recent.length, 1)
+  assert.equal(payload.payload.recent[0].amount, null)
+  assert.equal(payload.payload.overview[0].sessionId, 's2')
 })
