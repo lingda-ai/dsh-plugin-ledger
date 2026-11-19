@@ -143,3 +143,58 @@ test('只记体积不记内容：账本条目里不该出现工具输出原文',
   const dump = JSON.stringify(store.snapshot('s-privacy'))
   assert.ok(!dump.includes(secret), '工具输出原文不得进入账本')
 })
+
+
+test('压缩前后上下文对照：压缩条目记前值，后一条模型调用记省下的量', () => {
+  const { store, ledger } = harness()
+  const session = { id: 's-compact' }
+  // 压缩前：一次大上下文调用（input 30000 + cacheRead 12000 = 42k）
+  ledger.onSessionEvent(session, {
+    type: 'assistant/message',
+    turn: 1, step: 1,
+    usage: { inputTokens: 30000, outputTokens: 100, cacheReadTokens: 12000, cacheWriteTokens: 0 },
+    message: { source: { provider: 'deepseek', model: 'chat' } },
+  })
+  // 压缩（本身也是一次模型调用，有自己的支出）
+  ledger.onSessionEvent(session, {
+    type: 'compaction/start',
+    turn: 1, step: 2,
+    usage: { inputTokens: 42000, outputTokens: 500 },
+    message: { source: { provider: 'deepseek', model: 'chat' } },
+  })
+  // 压缩后：上下文降到 18k
+  ledger.onSessionEvent(session, {
+    type: 'assistant/message',
+    turn: 1, step: 3,
+    usage: { inputTokens: 15000, outputTokens: 200, cacheReadTokens: 3000, cacheWriteTokens: 0 },
+    message: { source: { provider: 'deepseek', model: 'chat' } },
+  })
+
+  const recent = store.snapshot('s-compact').recent
+  const compaction = recent.find((e) => e.kind === 'compaction')
+  const after = recent.filter((e) => e.kind === 'model').at(-1)
+  assert.equal(compaction.contextBeforeTokens, 42000, '压缩条目要记压缩前的上下文规模')
+  assert.equal(after.contextSavedTokens, 24000, '后一条调用记省下的 42k - 18k')
+})
+
+test('压缩后如果上下文反而更大，不报"省了"（负值不出现在面板）', () => {
+  const { store, ledger } = harness()
+  const session = { id: 's-compact-big' }
+  ledger.onSessionEvent(session, {
+    type: 'assistant/message', turn: 1, step: 1,
+    usage: { inputTokens: 1000, outputTokens: 10, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    message: { source: { provider: 'deepseek', model: 'chat' } },
+  })
+  ledger.onSessionEvent(session, {
+    type: 'compaction/start', turn: 1, step: 2,
+    usage: { inputTokens: 1000, outputTokens: 10 },
+    message: { source: { provider: 'deepseek', model: 'chat' } },
+  })
+  ledger.onSessionEvent(session, {
+    type: 'assistant/message', turn: 1, step: 3,
+    usage: { inputTokens: 9000, outputTokens: 10, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    message: { source: { provider: 'deepseek', model: 'chat' } },
+  })
+  const after = store.snapshot('s-compact-big').recent.filter((e) => e.kind === 'model').at(-1)
+  assert.equal(after.contextSavedTokens, null)
+})

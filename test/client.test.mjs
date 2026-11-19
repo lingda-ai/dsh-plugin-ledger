@@ -262,7 +262,7 @@ const fullView = {
   sourceCount: 3,
   recent: [
     { at: 1700000000000, turn: 2, step: 2, kind: 'model', amount: 0.001716, contextChars: 18442, unknownReason: null, route: { provider: 'deepseek', model: 'chat-mini' }, tokens: { input: 100, output: 50, cacheRead: 200, cacheWrite: 0 }, plugin: '@lingzhi/tools/kb', system: null },
-    { at: 1700000000000, turn: 2, step: 3, kind: 'compaction', amount: null, unknownReason: 'no-rate', route: null, tokens: null, plugin: null, system: 'compaction' },
+    { at: 1700000000000, turn: 2, step: 3, kind: 'compaction', amount: null, contextBeforeTokens: 42000, unknownReason: 'no-rate', route: null, tokens: null, plugin: null, system: 'compaction' },
   ],
   overview: [
     { sessionId: 'session-abc', amount: 0.015316, currency: 'CNY', entries: 7, lastAt: 1 },
@@ -300,7 +300,6 @@ test('数据态：合计、四档金额、来源、明细、预算都画出来',
   assert.match(html, /deepseek\/chat-mini/)
   assert.match(html, /其他会话/)
   assert.match(html, /sessio…def/)          // session-def 截断显示
-  assert.match(html, /上下文压缩/)          // 压缩条目的系统标签
   assert.match(html, /内置官方价估算/)      // 金额按什么价算的，要写在面板上
   assert.match(html, /最贵一步 ¥0.0017/)   // 治理时要能一眼看到哪一问最贵
   assert.match(html, /T2·S2/)             // 明细带轮次，时间定位不了问题
@@ -308,6 +307,7 @@ test('数据态：合计、四档金额、来源、明细、预算都画出来',
   assert.match(html, /占输入 63%/)         // 命中率：输入里有多少走了缓存
   assert.match(html, /还可约 5 次/)        // 比"已用 51%"更可行动
   assert.match(html, /↑18\.4k 字符/)       // 工具结果体量：解释"这一步为什么贵"
+  assert.match(html, /压缩前 42\.0k/)      // 压缩：前值，让人看到压缩前多大
 })
 
 test('数据态：未知费率条目显示原因码而不是 0', () => {
@@ -373,4 +373,17 @@ test('没有 callsLeft（预算未启用或无已知条目）时不编造"还能
   const html = htmlOf(view)
   assert.ok(!html.includes('还可约'))
   assert.match(html, /已用 51%/)
+})
+
+
+test('压缩省下的上下文用「↓省」标出，颜色是收益色', () => {
+  const view = {
+    ...fullView,
+    recent: [
+      { at: 1, turn: 3, step: 1, kind: 'model', amount: 0.002, contextChars: null, contextBeforeTokens: null, contextSavedTokens: 24000, unknownReason: null, route: { provider: 'deepseek', model: 'chat' }, tokens: null, plugin: null, system: null },
+    ],
+  }
+  const html = htmlOf(view)
+  assert.match(html, /↓省 24\.0k/)
+  assert.match(html, /#2f7d64/) // 收益色，不是支出色
 })
