@@ -40,16 +40,20 @@ session/event (post-commit, fire-and-forget)
 
 ```js
 // Host 半：插件通过 ctx.provide 暴露只读账本服务
-ctx.ledger.snapshot(sessionId, { lastN })   // 冻结快照：totals / topSources / recent / trace
+ctx.ledger.snapshot(sessionId, { lastN })   // 冻结快照：totals / topSources(≤3) / recent / trace / generatedAt
+ctx.ledger.sources(sessionId, { limit, sort }) // 全部来源（不截断）：amount / entries / share + 未知计数
+ctx.ledger.overview({ limit })              // 跨会话概览，LRU 顺序（最近使用在前）
 ctx.ledger.totals(sessionId)                // 只要累计
 ctx.ledger.stats()                          // { handled, failures, sessions }
 ctx.ledger.config                           // 生效配置（已合并默认值）
 
 // 模型半：工具
-ledger_query({ sessionId, lastN? })          // 人类可读摘要，未知成本显示"未知(原因)"
+ledger_query({ op?, sessionId?, lastN?, limit?, sort? })  // op=snapshot|sources|overview
 ```
 
 `snapshot` 返回的对象是被冻结的，面板可以放心持有，不用担心被采集路径改写。
+
+`sources` / `overview` 是纯读聚合：**不 touch LRU**——只读不续命，只有新事件才让会话提前，否则面板轮询会把 `maxSessions` 的淘汰策略废掉。
 
 ## 性能
 
