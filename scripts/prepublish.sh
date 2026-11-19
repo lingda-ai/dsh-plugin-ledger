@@ -30,7 +30,7 @@ process.stdin.on("data", d => raw += d).on("end", () => {
   const [pack] = JSON.parse(raw)
   const files = pack.files.map(f => f.path)
   const allowedFile = (p) =>
-    p === "package.json" || p === "README.md" || p === "cordis.patch.yml" || p.startsWith("lib/")
+    p === "package.json" || p === "README.md" || p === "LICENSE" || p === "cordis.patch.yml" || p.startsWith("lib/")
   const bad = files.filter(p => !allowedFile(p))
   if (bad.length > 0) process.stdout.write(bad.join("\n"))
 })')"
