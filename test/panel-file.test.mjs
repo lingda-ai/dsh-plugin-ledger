@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   SNAPSHOT_VERSION,
+  normalizeBudget,
   safeFileName,
   buildPanelPayload,
   createSnapshotPublisher,
@@ -138,4 +139,29 @@ test('落盘是多行 JSON：浏览器按行分页读得动', () => {
   const text = readFileSync(join(dir, 'session-abc.json'), 'utf8')
   assert.ok(text.split('\n').length > 5, '应至少写成一个可分行读取的对象')
   assert.ok(JSON.parse(text).totals)
+})
+
+test('预算读数：限额为 null 时整个字段为 null', () => {
+  assert.equal(normalizeBudget({ limit: null }, snap.totals), null)
+  assert.equal(normalizeBudget(undefined, snap.totals), null)
+  assert.equal(normalizeBudget({ limit: 0 }, snap.totals), null)
+})
+
+test('预算读数：已用取合计金额，ratio 封顶 1，金额缺失不编 0', () => {
+  const b = normalizeBudget({ limit: 0.03, currency: 'CNY' }, snap.totals)
+  assert.equal(b.limit, 0.03)
+  assert.equal(b.used, 0.015316)
+  assert.ok(Math.abs(b.ratio - 0.5105333333) < 1e-6)
+  const over = normalizeBudget({ limit: 0.01 }, { cost: { amount: 0.5, currency: 'CNY' } })
+  assert.equal(over.ratio, 1)
+  const missing = normalizeBudget({ limit: 0.03 }, { cost: { amount: null } })
+  assert.equal(missing.used, null)
+  assert.equal(missing.ratio, null)
+})
+
+test('payload 里带上预算（未启用时为 null）', () => {
+  const off = buildPanelPayload(snap, srcs, { budget: { limit: null } })
+  assert.equal(off.payload.budget, null)
+  const on = buildPanelPayload(snap, srcs, { budget: { limit: 0.03, currency: 'CNY' } })
+  assert.equal(on.payload.budget.limit, 0.03)
 })
