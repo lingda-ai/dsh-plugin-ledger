@@ -272,3 +272,28 @@ M0 阶段代码里有 4 处用可能为空的取值兜底，属于"没核实前�
 
 **性能约束**：`keepMounted` + 定时刷新会叠加（多会话常驻时同时打点），
 面板必须在 tab 非 active 时停掉刷新。
+
+
+## C-2 正文与标题 seat 的真实形态（2026-11-19 核实）
+
+从 npm 取到 `@deepseek-ai/dsh-client-ui-slots@0.0.1-rc.1` 并读 sidebar-right 的编译产物，
+确认注册形态如下（照抄，不要自创）：
+
+```js
+ctx.slots.inject('sidebar.right.pane.tab', () =>
+  ctx.slots.register({ name: 'sidebar.right.pane.tab', key: '<type.id>' }, Component))
+```
+
+- keyed seat 必须带 `key`，值等于 tab 类型的 `id`（本包为 `@lingda/ledger`）。
+- `inject(seat, factory)` 是"声明就绪后再注册"的入口：seat 由 sidebar-right 声明，
+  直接 `register` 有未声明风险。
+- 标题 seat `sidebar.right.pane.tab.title` 同形态，组件返回 chip 文本。
+- 组件 props 走 `ComposedProps`：session slot 带 `sessionId`；`TabHookContext`
+  （`active` / `signal` / `useTabNavigation` 等）是 inject 上下文，不是 props。
+- React 由宿主模块表提供（sidebar-right 里是 `require("react")`）；
+  客户端插件用动态 `import('react')`，取不到就退回"只登记类型"的降级态。
+
+**尚未接通**：面板取数。数据在 Host 的 `ctx.ledger` 上，浏览器进程拿不到，
+需要 Typert remote（`ctx.remote.$mount` + 生成产物），属 M2。
+接入点已收敛到 `lib/client.js` 的 `createFetchView()` 一处：
+返回 `{ totals, sources, generatedAt }`，前端只格式化，不聚合、不补零。
