@@ -123,9 +123,17 @@ trace:
 ## 开发
 
 ```bash
-node --test test/*.test.mjs    # 35 例
+node --test test/*.test.mjs    # 38 例
 npm run bench                  # 热路径基准（需 --expose-gc）
+bash scripts/ci.sh             # 等价 CI：单测 + 性能门禁 + 契约冒烟
 ```
+
+CI（`.github/workflows/ci.yml`）：Node 18/20/22 三档跑单测，仅 Node 22 跑性能门禁，
+阈值只拦数量级劣化（稳定态 >6µs、会话抖动 >15µs、heap >32MB 才失败）。
+
+`scripts/smoke-dsh.mjs` 用**真实** `@deepseek-ai/dsh-llm` 构造一次预算消息，
+验证 `createUserMessage` 的契约；没装运行时时自动 SKIP 而不是失败。
+这是唯一"必须真机才有意义"的检查，所以不放进单测。
 
 零构建、零运行时依赖：不 import 任何 `@deepseek-ai/*` 做业务逻辑；
 唯一例外是预算事实要用的 `createUserMessage`，走可选 peer + 动态 import，

@@ -1,0 +1,33 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 插件声明 engines >= 18，矩阵覆盖 18 / 20 / 22 三个 LTS 口径
+        node: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # 零运行时依赖：不需要 npm install
+      - name: Unit tests
+        run: node --test test/*.test.mjs
+
+      # 只在最新 LTS 上跑基准，避免不同机器的抖动造成噪声失败
+      - name: Perf gate
+        if: matrix.node == 22
+        run: node --expose-gc scripts/bench.mjs --gate
+
+      # 外部运行时（@deepseek-ai/dsh-llm）在 CI 中不存在 → 自动 SKIP
+      - name: DSH contract smoke
+        run: node scripts/smoke-dsh.mjs

@@ -198,3 +198,18 @@ M0 阶段代码里有 4 处用可能为空的取值兜底，属于"没核实前�
 
 29 个单测（含 6 会话 × 多事件）整体耗时 167ms，平均单测 < 6ms。
 这不是基准测试，只是确认"没有隐藏的 O(n) 操作"。
+
+---
+
+## M2 冒烟（真实运行时，不是替身）
+
+`scripts/smoke-dsh.mjs` 直接加载 `/home/user/lingzhi/node_modules/@deepseek-ai/dsh-llm`，
+用真实 `createUserMessage` 构造一条预算事实消息，结果：
+
+- `CLM-1` 导出存在；
+- `CLM-2..6` 产出 `{ id: <uuid>, role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text }] }`；
+- `CLM-7` 返回对象**已冻结**（`Object.isFrozen === true`）。
+
+意义：通道 A 不需要宿主配合构造消息，插件自己就能产出可交给 `agent.inject` 的合法对象。
+剩下未验证的只有两件：真实进程里 `session/event` 是否真的派发到根 ctx 监听器，
+以及 `ctx.tools.register` 的 registry 是否接受本工具的 `output.schema`（需要真机 boot，M2 尾）。

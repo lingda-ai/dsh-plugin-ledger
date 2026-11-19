@@ -60,11 +60,11 @@ function run(label, n, { sessions = 4, capacity = 2000 } = {}) {
 }
 
 console.log('--- 热路径（容量有界） ---')
-run('4 会话 / 混合同步事件', 200_000, { sessions: 4 })
-run('64 会话 / 混合同步事件', 200_000, { sessions: 64 })
+const steady4 = run('4 会话 / 混合同步事件', 200_000, { sessions: 4 })
+const steady64 = run('64 会话 / 混合同步事件', 200_000, { sessions: 64 })
 
 console.log('--- 最坏情况：每条事件都是新会话（触发 LRU 淘汰） ---')
-run('无限新会话', 100_000, { sessions: 100_000, capacity: 2000 })
+const churn = run('无限新会话', 100_000, { sessions: 100_000, capacity: 2000 })
 
 console.log('--- 内存（有界验证） ---')
 const { ledger } = build()
@@ -74,3 +74,24 @@ for (let i = 0; i < 300_000; i += 1) {
 global.gc?.()
 const mb = process.memoryUsage().heapUsed / 1024 / 1024
 console.log(`300k 事件后 heapUsed = ${mb.toFixed(1)} MB（环形缓冲固定容量，不随事件数增长）`)
+
+// ---------------------------------------------------------------------------
+// CI 门禁：node scripts/bench.mjs --gate
+// 阈值取得比实测宽 3–4 倍，只拦"数量级劣化"（例如有人把环形缓冲换成数组 shift），
+// 不做微基准抖动判断。
+// ---------------------------------------------------------------------------
+if (process.argv.includes('--gate')) {
+  const LIMIT_STEADY_US = 6
+  const LIMIT_CHURN_US = 15
+  const MEMORY_LIMIT_MB = 32
+  const failures = []
+  if (steady4 / 1000 > LIMIT_STEADY_US) failures.push(`稳定态 ${(steady4 / 1000).toFixed(2)}µs > ${LIMIT_STEADY_US}µs`)
+  if (steady64 / 1000 > LIMIT_STEADY_US) failures.push(`64 会话 ${(steady64 / 1000).toFixed(2)}µs > ${LIMIT_STEADY_US}µs`)
+  if (churn / 1000 > LIMIT_CHURN_US) failures.push(`LRU 抖动 ${(churn / 1000).toFixed(2)}µs > ${LIMIT_CHURN_US}µs`)
+  if (mb > MEMORY_LIMIT_MB) failures.push(`heap ${mb.toFixed(1)}MB > ${MEMORY_LIMIT_MB}MB`)
+  if (failures.length) {
+    console.error(`\nGATE FAIL\n- ${failures.join('\n- ')}`)
+    process.exit(1)
+  }
+  console.log('\nGATE PASS（阈值：稳定态 <6µs、抖动 <15µs、heap <32MB）')
+}
