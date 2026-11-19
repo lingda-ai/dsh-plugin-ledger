@@ -179,6 +179,15 @@ dsh --profile <已有profile> --patch <仓库>/mount/ledger-dev.overlay.yml
 - 读取：浏览器侧 `workspaceFiles` remote，相对路径 `stat` 换绝对路径再 `read`。
 - 打不开面板时先看 `ctx.ledger.panel`：`{enabled, dir, stats}`。
 
+## 面板预览（代码的真实输出）
+
+```bash
+node scripts/render-panel.mjs   # → docs/panel-preview.html
+```
+
+不是设计稿：它调用 `lib/client.js` 的 `renderPayload()`，用与测试同一份 payload
+生成真实 DOM，380px / 300px 两档并排。改 UI 后重跑即可刷新。
+
 ## 来源桶口径
 
 面板与 `ledger_query` 的 `sources` 里，三个保留 key 各有确定含义：
