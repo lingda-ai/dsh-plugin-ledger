@@ -189,6 +189,34 @@ node scripts/smoke-panel.mjs   # ci.sh 已接入
 再用与生成声明同签名的 `workspaceFiles` remote 读回，断言两侧金额/四档/条目数逐项一致。
 真机多出来的只有物理传输那一层。
 
+## 费率从哪来（重要）
+
+内置表只收**官方页面可查**的价格，不猜、不估：
+
+| 模型 | 缓存命中 | 缓存未命中 | 输出 |
+|---|---|---|---|
+| `deepseek-v4-flash` | 0.02 | 1 | 2 |
+| `deepseek-v4-pro` | 0.025 | 3 | 6 |
+| `deepseek-chat` / `deepseek-reasoner` | 同 flash（官方明示的兼容别名） | | |
+
+单位：元 / 百万 tokens。来源 `https://api-docs.deepseek.com/zh-cn/quick_start/pricing`，抓取日 2026-11-19。
+官方已声明价格可能变动，别把这张表当合同。
+
+三条口径说明：
+
+- **`cacheWrite` 记 0**。DeepSeek 只有"命中 / 未命中"两档，没有独立的缓存写单价；缓存写入的
+  token 本来就计入未命中输入。若这里再给价，同一批 token 会被收两次钱。其它 provider 单独
+  收缓存写时，在配置里覆盖即可。
+- **表里没有的模型** → `unknown(no-rate)`，面板显示 `—`，不用 0 或平均值冒充。
+- **覆盖**按单模型深合并，只改你要改的那一项：
+
+```yaml
+pricing:
+  rates:
+    deepseek-v4-pro:
+      output: 1.2e-6   # 元/token；等价于 1.2 元/百万
+```
+
 ## 面板预览（代码的真实输出）
 
 ```bash

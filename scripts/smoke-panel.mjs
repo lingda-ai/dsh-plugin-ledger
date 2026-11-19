@@ -44,12 +44,9 @@ function emit(event, payload, extra) {
 }
 
 try {
+  // 不传 pricing：走内置官方费率表，等于顺带验证"表→面板金额"这条线
   applyHost(ctx, {
     panel: { enabled: true, dir: '.dsh/ledger', intervalMs: 0 },
-    pricing: {
-      currency: 'CNY',
-      rates: { 'deepseek/chat': { input: 1e-6, output: 2e-6, cacheRead: 2e-7, cacheWrite: 1.2e-6 } },
-    },
     attribution: { toolOwners: { 'tools.hr': '@lingzhi/tools/hr' } },
   })
   check('PANEL-1', 'Host 半可装配（假 ctx 不抛错）', true)
@@ -64,7 +61,7 @@ try {
     step: 2,
     callId: 'c2',
     usage: { inputTokens: 9260, outputTokens: 1462, cacheReadTokens: 15660, cacheWriteTokens: 0, reasoningTokens: 312, complete: true },
-    message: { source: { provider: 'deepseek', model: 'chat' }, usage: { inputTokens: 9260, outputTokens: 1462, cacheReadTokens: 15660, cacheWriteTokens: 0, reasoningTokens: 312 } },
+    message: { source: { provider: 'deepseek', model: 'deepseek-v4-flash' }, usage: { inputTokens: 9260, outputTokens: 1462, cacheReadTokens: 15660, cacheWriteTokens: 0, reasoningTokens: 312 } },
   })
 
   const relative = panelRelativePath(sessionId)
@@ -80,10 +77,10 @@ try {
   if (!exists) throw new Error('没有落盘，后续断言无从进行')
 
   const raw = JSON.parse(readFileSync(abs, 'utf8'))
-  const expect = 0.015316
+  const expect = 0.0124972 // 9260×1e-6 + 15660×2e-8 + 1462×2e-6（内置 flash 官方价）
   check(
     'PANEL-3',
-    '快照金额与计价口径一致（四档之和）',
+    '快照金额与内置费率手算一致（四档之和）',
     Math.abs(raw.totals.cost.amount - expect) < 1e-9,
     `amount=${raw.totals.cost.amount}`,
   )
