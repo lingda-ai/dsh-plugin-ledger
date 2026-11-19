@@ -5,38 +5,70 @@ const React = require('react')
 const { renderToStaticMarkup } = require('react-dom/server')
 const { __internal } = await import('../lib/client.js')
 
+import { createPricing } from '../lib/pricing.js'
+import { BUILTIN_RATES } from '../lib/pricing-table.js'
+
+const pricing = createPricing({ currency: 'CNY', rates: BUILTIN_RATES })
 const h = React.createElement
 const sessionId = 'session-9f2a41'
+
+/** 面板上的每个金额都由内置官方价表算出，不手填，免得预览和真实口径漂移。 */
+function costOf(model, input, output, cacheRead) {
+  const cost = pricing.costOf(
+    { inputTokens: input, outputTokens: output, cacheReadTokens: cacheRead, cacheWriteTokens: 0, reasoningTokens: 0, missing: 0, complete: true },
+    { provider: 'deepseek', model },
+  )
+  return cost
+}
+
+const a = costOf('deepseek-v4-flash', 3200, 620, 4100)   // @lingzhi/tools/kb
+const b = costOf('deepseek-v4-pro', 6060, 842, 11560)    // @lingzhi/tools/hr
+const total = a.amount + b.amount
+// 三桶互斥（store 里每个条目只落一个桶），占比之和必须是 100%：
+// preview 数据若不自洽，读者会误以为面板算错了占比。
+const hrAmount = total * 0.62
+const sharedAmount = total - hrAmount - a.amount
+
+
 
 const view = {
   version: 1,
   sessionId,
   generatedAt: '2026-11-19T13:52:00.000Z',
   totals: {
-    cost: { amount: 0.015316, currency: 'CNY', knownEntries: 6, unknownEntries: 0,
-      parts: { input: 0.00926, output: 0.002924, cacheRead: 0.003132, cacheWrite: 0 } },
+    cost: {
+      amount: total,
+      currency: 'CNY',
+      knownEntries: 3,
+      unknownEntries: 0,
+      parts: {
+        input: a.parts.input + b.parts.input,
+        output: a.parts.output + b.parts.output,
+        cacheRead: a.parts.cacheRead + b.parts.cacheRead,
+        cacheWrite: 0,
+      },
+    },
     tokens: { input: 9260, output: 1462, cacheRead: 15660, cacheWrite: 0, reasoning: 312, missing: 0 },
-    entries: 6,
+    entries: 3,
   },
   topSources: [],
   sources: [
-    { plugin: '@lingzhi/tools/hr', amount: 0.005552, entries: 1, share: 0.3624 },
-    { plugin: 'shared:unknown', amount: 0.005412, entries: 2, share: 0.3532 },
-    { plugin: '@lingzhi/tools/kb', amount: 0.001716, entries: 1, share: 0.1121 },
-
+    { plugin: '@lingzhi/tools/hr', amount: hrAmount, entries: 1, share: hrAmount / total },
+    { plugin: 'shared:unknown', amount: sharedAmount, entries: 1, share: sharedAmount / total },
+    { plugin: '@lingzhi/tools/kb', amount: a.amount, entries: 1, share: a.amount / total },
   ],
-  sourceCount: 5,
+  sourceCount: 3,
   recent: [
-    { at: 1763521920000, kind: 'model', amount: 0.001716, unknownReason: null, route: { provider: 'deepseek', model: 'chat-mini' }, tokens: { input: 3200, output: 620, cacheRead: 4100, cacheWrite: 0 }, plugin: '@lingzhi/tools/kb', system: null },
-    { at: 1763521860000, kind: 'model', amount: 0.005552, unknownReason: null, route: { provider: 'deepseek', model: 'chat' }, tokens: { input: 6060, output: 842, cacheRead: 11560, cacheWrite: 0 }, plugin: '@lingzhi/tools/hr', system: null },
+    { at: 1763521920000, kind: 'model', amount: a.amount, unknownReason: null, route: { provider: 'deepseek', model: 'deepseek-v4-flash' }, tokens: { input: 3200, output: 620, cacheRead: 4100, cacheWrite: 0 }, plugin: '@lingzhi/tools/kb', system: null },
+    { at: 1763521860000, kind: 'model', amount: b.amount, unknownReason: null, route: { provider: 'deepseek', model: 'deepseek-v4-pro' }, tokens: { input: 6060, output: 842, cacheRead: 11560, cacheWrite: 0 }, plugin: '@lingzhi/tools/hr', system: null },
     { at: 1763521800000, kind: 'compaction', amount: null, unknownReason: 'no-rate', route: null, tokens: null, plugin: null, system: 'compaction' },
   ],
   overview: [
-    { sessionId, amount: 0.015316, currency: 'CNY', entries: 6, lastAt: 1763521920000 },
+    { sessionId, amount: total, currency: 'CNY', entries: 3, lastAt: 1763521920000 },
     { sessionId: 'session-77c1de', amount: 0.0204, currency: 'CNY', entries: 9, lastAt: 1763520900000 },
     { sessionId: 'session-c40ab2', amount: 0.0019, currency: 'CNY', entries: 2, lastAt: 1763519100000 },
   ],
-  budget: { limit: 0.03, currency: 'CNY', used: 0.015316, ratio: 0.5105 },
+  budget: { limit: 0.03, currency: 'CNY', used: total, ratio: total / 0.03 },
 }
 
 const head = h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px 8px', borderBottom: '1px solid #eef1f5' } },

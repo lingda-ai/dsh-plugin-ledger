@@ -291,6 +291,7 @@ test('数据态：合计、四档金额、来源、明细、预算都画出来',
   assert.match(html, /其他会话/)
   assert.match(html, /sessio…def/)          // session-def 截断显示
   assert.match(html, /上下文压缩/)          // 压缩条目的系统标签
+  assert.match(html, /内置官方价估算/)      // 金额按什么价算的，要写在面板上
 })
 
 test('数据态：未知费率条目显示原因码而不是 0', () => {
