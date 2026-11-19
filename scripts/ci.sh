@@ -9,7 +9,10 @@ node --test test/*.test.mjs
 echo "== 热路径门禁 =="
 node --expose-gc scripts/bench.mjs --gate
 
-echo "== DSH 契约冒烟（无运行时则自动 SKIP）=="
+echo "== DSH 工具契约冒烟（无运行时则自动 SKIP）=="
+node scripts/smoke-registry.mjs
+
+echo "== DSH 消息契约冒烟（无运行时则自动 SKIP）=="
 node scripts/smoke-dsh.mjs
 
 echo "全部通过"

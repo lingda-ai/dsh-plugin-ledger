@@ -1,0 +1,13 @@
+# 开发期挂载 overlay：不安装、不改 profile，直接叠加到已有 profile 上启动。
+#
+#   DSH_HOME=... dsh --profile <已有profile> --patch <本文件> --dump-config
+#   DSH_HOME=... dsh --profile <已有profile> --patch <本文件>
+#
+# 已实测：loader 会把下面这条绝对路径规范化为 file:///... 后再装配，
+# 因此开发期不需要把插件 install 进 profile 的 node_modules。
+#
+# 把 /home/user/dsh-plugin-ledger 换成你本机的仓库绝对路径。
+
+- insert:
+    - id: lingda-ledger
+      name: '/home/user/dsh-plugin-ledger/lib/index.js'

@@ -135,6 +135,23 @@ CI（`.github/workflows/ci.yml`）：Node 18/20/22 三档跑单测，仅 Node 22
 验证 `createUserMessage` 的契约；没装运行时时自动 SKIP 而不是失败。
 这是唯一"必须真机才有意义"的检查，所以不放进单测。
 
+`scripts/smoke-registry.mjs` 用**真实** `@deepseek-ai/dsh-tools` 的三个校验器
+（`assertSupportedJsonSchema` / `assertObjectJsonSchema` / `validateJsonSchemaValue`）
+验证工具定义，并真跑一次 `execute` 确认返回值能通过自己声明的 schema。
+
+## 开发期挂载（不 install、不改 profile）
+
+`mount/ledger-dev.overlay.yml` 是可直接叠加的 patch 层：
+
+```bash
+dsh --profile <已有profile> --patch <仓库>/mount/ledger-dev.overlay.yml
+```
+
+已实测：loader 会把 overlay 里的绝对路径规范化为 `file:///...` 再装配，
+所以开发期不需要把插件装进 profile 的 `node_modules`。
+先 `--dump-config` 看装配结果，确认 `lingda-ledger` 那一条在那里。
+
+
 零构建、零运行时依赖：不 import 任何 `@deepseek-ai/*` 做业务逻辑；
 唯一例外是预算事实要用的 `createUserMessage`，走可选 peer + 动态 import，
 拿不到就自动降级为"只经 ledger_query 拉取"。

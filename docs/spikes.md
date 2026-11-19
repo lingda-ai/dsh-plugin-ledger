@@ -213,3 +213,25 @@ M0 阶段代码里有 4 处用可能为空的取值兜底，属于"没核实前�
 意义：通道 A 不需要宿主配合构造消息，插件自己就能产出可交给 `agent.inject` 的合法对象。
 剩下未验证的只有两件：真实进程里 `session/event` 是否真的派发到根 ctx 监听器，
 以及 `ctx.tools.register` 的 registry 是否接受本工具的 `output.schema`（需要真机 boot，M2 尾）。
+
+### M2 追加：工具定义与挂载形态
+
+用真实 `@deepseek-ai/dsh-tools`（0.1.7-rc.2，`.pnpm` 实装）的三个校验器验证：
+
+| 检查 | 结果 |
+|---|---|
+| `assertSupportedJsonSchema({type:'string'})` | PASS，`output.schema` 在受支持子集内 |
+| `assertObjectJsonSchema(parameters)` | PASS，required 为 `['sessionId']` |
+| `validateJsonSchemaValue(output.schema, 实际返回值)` | PASS，execute 返回值确实符合自己声明的 schema |
+| `render()` 产出 | PASS，合法 `ContentBlock` |
+
+挂载形态（实测 `dsh --dump-config`）：
+`--patch` overlay 里写绝对路径，loader 会规范化成 `file:///home/user/dsh-plugin-ledger/lib/index.js`
+后装配进 profile 树。**开发期不需要 install 到 profile 的 node_modules。**
+
+**仍未验证（需真机 boot，不冒充已完成）**：
+1. `ctx.tools.register(def)` 本身——`ToolRuntime` 在裸 cordis Context 里起不来（依赖 scope/logger 服务）；
+2. 真实进程里 `session/event` 是否派发到根 ctx 监听器（`ctx.on('session/event')` 无 scope 过滤的假设）；
+3. `ctx.provide('ledger')` 在真实 profile 里是否与其他插件命名冲突。
+
+这三条只能靠 `dsh headless` 或 `dsh web` 起真进程验证，且要用真实模型凭据跑一轮对话。
