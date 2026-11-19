@@ -243,6 +243,9 @@ const fullView = {
   generatedAt: '2026-11-19T10:00:00.000Z',
   totals: {
     cacheHitRate: 0.6284,
+    // 收益：省 0.0051，实花 0.015316，占比 25%
+    saved: { amount: 0.0051, currency: 'CNY', entries: 1 },
+    savedShare: 0.25,
     cost: {
       amount: 0.015316,
       currency: 'CNY',
@@ -308,6 +311,8 @@ test('数据态：合计、四档金额、来源、明细、预算都画出来',
   assert.match(html, /还可约 5 次/)        // 比"已用 51%"更可行动
   assert.match(html, /↑18\.4k 字符/)       // 工具结果体量：解释"这一步为什么贵"
   assert.match(html, /压缩前 42\.0k/)      // 压缩：前值，让人看到压缩前多大
+  assert.match(html, /缓存命中已省 ¥0\.0051/)  // 商业化上最有力的一行：省了多少
+  assert.match(html, /占应花 25\.0%/)            // 省下的占比，比绝对值更有感知
 })
 
 test('数据态：未知费率条目显示原因码而不是 0', () => {
@@ -386,4 +391,17 @@ test('压缩省下的上下文用「↓省」标出，颜色是收益色', () =>
   const html = htmlOf(view)
   assert.match(html, /↓省 24\.0k/)
   assert.match(html, /#2f7d64/) // 收益色，不是支出色
+})
+
+
+test('没有可算的缓存节省时不画收益行（不写"已省 ¥0.0000"）', () => {
+  const view = { ...fullView, totals: { ...fullView.totals, saved: { amount: 0, currency: 'CNY', entries: 0 }, savedShare: null } }
+  const html = htmlOf(view)
+  assert.ok(!html.includes('缓存命中已省'), '0 收益不值得占版面')
+})
+
+test('节省额未知（费率未知）时也不画，不拿 0 冒充', () => {
+  const view = { ...fullView, totals: { ...fullView.totals, saved: { amount: null, currency: null, entries: 0 }, savedShare: null } }
+  const html = htmlOf(view)
+  assert.ok(!html.includes('缓存命中已省'))
 })

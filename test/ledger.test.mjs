@@ -198,3 +198,35 @@ test('压缩后如果上下文反而更大，不报"省了"（负值不出现在
   const after = store.snapshot('s-compact-big').recent.filter((e) => e.kind === 'model').at(-1)
   assert.equal(after.contextSavedTokens, null)
 })
+
+
+test('缓存命中省下的钱严格可算：命中量 × (未命中价 − 命中价)', () => {
+  const store = new LedgerStore({ capacity: 50, traceCapacity: 10, traceEnabled: false, maxSessions: 4 })
+  const pricing = createPricing({
+    rates: { 'deepseek/chat': { input: 1e-6, output: 2e-6, cacheRead: 0.02e-6, cacheWrite: 0, currency: 'CNY' } },
+  })
+  const attribution = createAttribution({ toolOwners: {} })
+  const trace = createTrace({ enabled: false })
+  const ledger = createLedger({ store, pricing, attribution, trace })
+  ledger.onSessionEvent({ id: 's-hit' }, {
+    type: 'assistant/message', turn: 1, step: 1,
+    usage: { inputTokens: 1000, outputTokens: 100, cacheReadTokens: 10000, cacheWriteTokens: 0, complete: true },
+    message: { source: { provider: 'deepseek', model: 'chat' } },
+  })
+  const saved = store.totals('s-hit').saved
+  // 10000 × (1 - 0.02) / 1e6 = 0.0098
+  assert.equal(Math.round(saved.amount * 1e6) / 1e6, 0.0098)
+  assert.equal(saved.entries, 1)
+})
+
+test('没有缓存命中时不报"省了 0 元"（amount 为 null）', () => {
+  const { store, ledger } = harness()
+  ledger.onSessionEvent({ id: 's-nohit' }, {
+    type: 'assistant/message', turn: 1, step: 1,
+    usage: { inputTokens: 10, outputTokens: 5 },
+    message: { source: { provider: 'deepseek', model: 'chat' } },
+  })
+  assert.equal(store.totals('s-nohit').saved.amount, 0)
+  assert.equal(store.totals('s-nohit').saved.entries, 1)
+  assert.equal(store.totals('s-absent').saved.amount, null)
+})

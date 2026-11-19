@@ -32,6 +32,18 @@ const total = a.amount + b.amount + otherAmount
 
 
 
+// 与 withPanelTotals 完全同一算法（省 / 应花），预览数据自己也得自洽
+function withDerived(totals) {
+  const t = totals.tokens ?? {}
+  const denom = (t.input ?? 0) + (t.cacheRead ?? 0)
+  const cacheHitRate = denom > 0 ? t.cacheRead / denom : null
+  const saved = totals.saved?.amount ?? null
+  const spent = totals.cost?.amount ?? null
+  const gross = saved !== null && spent !== null ? spent + saved : null
+  const savedShare = gross !== null && gross > 0 ? saved / gross : null
+  return { ...totals, cacheHitRate, savedShare }
+}
+
 const view = {
   version: 1,
   sessionId,
@@ -39,6 +51,17 @@ const view = {
   totals: {
     // 面板口径的派生字段，真实链路由 withPanelTotals 算
     cacheHitRate: 15660 / (9260 + 15660),
+    // 缓存节省金额由价表真算：命中量 × (未命中价 − 命中价)，不手填
+    saved: {
+      amount: pricing.savingsOf(
+        { inputTokens: 9260, outputTokens: 1462, cacheReadTokens: 15660, cacheWriteTokens: 0, complete: true },
+        { provider: 'deepseek', model: 'deepseek-v4-flash' },
+      ).amount,
+      currency: 'CNY',
+      entries: 2,
+      // 面板上"占应花"的比例，与 withPanelTotals 同一算法
+      share: null,
+    },
     cost: {
       amount: total,
       currency: 'CNY',
@@ -87,8 +110,9 @@ const head = h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, 
   h('button', { type: 'button', style: { marginLeft: 'auto', border: '1px solid #d8dee7', background: '#fff', borderRadius: 7, padding: '3px 9px', fontSize: 11.5, color: '#5a6472' } }, '刷新'),
 )
 
-const panel = renderToStaticMarkup(__internal.renderPayload(React, view, sessionId, head))
-const panelExpanded = renderToStaticMarkup(__internal.renderPayload(React, view, sessionId, head, { expanded: true }))
+const viewD = { ...view, totals: withDerived(view.totals) }
+const panel = renderToStaticMarkup(__internal.renderPayload(React, viewD, sessionId, head))
+const panelExpanded = renderToStaticMarkup(__internal.renderPayload(React, viewD, sessionId, head, { expanded: true }))
 
 const html = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>账本面板 · 代码真实渲染</title>
 <style>

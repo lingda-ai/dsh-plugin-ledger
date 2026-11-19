@@ -2,6 +2,7 @@
   "name": "@lingda/ledger",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "description": "DSH 运行时账本：旁路计量 Agent 的 token 与成本，并据预算对下一次请求做决策",
   "keywords": [
@@ -18,6 +19,7 @@
     "./package.json": "./package.json"
   },
   "files": [
+    "LICENSE",
     "lib",
     "cordis.patch.yml",
     "README.md"
