@@ -358,3 +358,16 @@ ctx.slots.inject('sidebar.right.pane.tab', () =>
 
 两层开关：`trace.enabled`（采不采）与 `trace.file.enabled`（落不落盘）分开，
 后者默认 false —— 落盘会把对话里调用的工具名与摘要写到工作区，属于额外的暴露面。
+
+
+## C-5 归因只认"同轮上一步"的工具集（冒烟实测确认）
+
+`lib/ledger.js` 的模型调用归因取 `store.toolsForStep(sessionId, turn, step - 1)`：
+同一个 `turn` 内、当前 `step` 的前一步。
+
+冒烟脚本第一次写成"turn1 的工具 + turn2 的模型调用"，来源落到了 `unattributed`——
+这不是 bug，是口径：**跨轮的工具不继承归因**。理由是 P-2 已经证明工具没有插件身份，
+如果把上一轮的工具带入本轮，多轮对话里所有调用都会被第一轮的插件"吃掉"，比空着更错。
+
+真机上要归因到插件，仍必须配 `attribution.toolOwners`（工具名 → 插件名），
+并且工具的 `turn/step` 要落在模型调用前一步。

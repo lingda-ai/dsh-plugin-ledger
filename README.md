@@ -179,6 +179,16 @@ dsh --profile <已有profile> --patch <仓库>/mount/ledger-dev.overlay.yml
 - 读取：浏览器侧 `workspaceFiles` remote，相对路径 `stat` 换绝对路径再 `read`。
 - 打不开面板时先看 `ctx.ledger.panel`：`{enabled, dir, stats}`。
 
+## 面板链路冒烟
+
+```bash
+node scripts/smoke-panel.mjs   # ci.sh 已接入
+```
+
+不 boot 真 DSH、不吃模型凭据：假 ctx 派发 `session/event` → 计价 → 落盘，
+再用与生成声明同签名的 `workspaceFiles` remote 读回，断言两侧金额/四档/条目数逐项一致。
+真机多出来的只有物理传输那一层。
+
 ## 面板预览（代码的真实输出）
 
 ```bash

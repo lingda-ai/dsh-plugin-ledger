@@ -15,4 +15,7 @@ node scripts/smoke-registry.mjs
 echo "== DSH 消息契约冒烟（无运行时则自动 SKIP）=="
 node scripts/smoke-dsh.mjs
 
+echo "== 面板链路冒烟（落盘 → 读回，口径一致）=="
+node scripts/smoke-panel.mjs
+
 echo "全部通过"
