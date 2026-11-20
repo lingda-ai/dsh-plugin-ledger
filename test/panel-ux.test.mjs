@@ -136,7 +136,7 @@ test('零金额、零条目的来源行不占版面', () => {
 })
 
 test('明细里的 token 数要有主语（本次），不是累计上下文', () => {
-  assert.match(flat(view()), /本次 180,000 tok/)
+  assert.match(flat(view()), /本次 180k tok/)
 })
 
 test('工具结果体量用「工具结果」而不是无解释的箭头', () => {
