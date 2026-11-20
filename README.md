@@ -364,7 +364,10 @@ bash scripts/publish.sh           # 六项前置检查 → 门禁 → 发布 →
 # 代码仓（已公开，可直接 clone/链接）
 git clone https://gitee.com/linzhengtong/dsh-plugin-ledger.git
 
-# npm 尚未发布（见"已知限制"），发布后这一行才可用
+# 方式一：从 Gitee 直装（无需 npm 账号，已实测可用；#v0.1.0 锁版本）
+dsh plugin --profile <name> add "git+https://gitee.com/linzhengtong/dsh-plugin-ledger.git#v0.1.0"
+
+# 方式二：从 npm（需该包已发布）
 dsh plugin add @lingda-ai/ledger
 ```
 
@@ -373,7 +376,7 @@ dsh plugin add @lingda-ai/ledger
 > 所以往里加了新模块之后，必须重装才能看到它：
 >
 > ```bash
-> rm -rf ~/.dsh/profiles/<name>/node_modules/@lingda
+> rm -rf ~/.dsh/profiles/<name>/node_modules/@lingda-ai
 > dsh plugin --profile <name> add file:/path/to/dsh-plugin-ledger
 > ```
 >
