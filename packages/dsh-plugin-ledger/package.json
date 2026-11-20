@@ -1,0 +1,29 @@
+{
+  "name": "@lingda-ai/dsh-plugin-ledger",
+  "version": "0.1.2",
+  "description": "DSH 插件搜索入口：运行时账本（成本/用量观测）。实现在 @lingda-ai/ledger，本包仅转发装配。",
+  "license": "Apache-2.0",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "ledger",
+    "cost",
+    "token-usage",
+    "budget"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "files": [
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@lingda-ai/ledger": "0.1.2"
+  }
+}

@@ -1,0 +1,4 @@
+# @lingda-ai/dsh-plugin-ledger —— 转发包，实际装配由主包提供
+- insert:
+    - id: lingda-ledger
+      name: "@lingda-ai/ledger"
