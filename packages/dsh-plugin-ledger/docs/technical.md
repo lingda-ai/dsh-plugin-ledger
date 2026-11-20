@@ -242,17 +242,34 @@ token 只是 `measures` 里的一种单位。计划中的第二个来源（Trae 
 
 ---
 
+### 8.1 文案口径（改面板前必读）
+
+面板的所有文案都对应过一次真实误读，别再改回去：
+
+| 写法 | 为什么不能写成另一个 |
+|---|---|
+| `9 次调用` | `9 条` 紧挨金额会被读成 9 元 |
+| `少花 97%` | `占应花 97%` 里的"应花"是内部口径，用户不知道分母是什么 |
+| `几乎全命中` | 命中率 ≥99.5% 时 `占输入 100%` 零信息量；0% 时整条后缀不画 |
+| `3 条费率未知，本次未计价` | 一条都算不出来时不存在"下限"，不能写"合计偏低" |
+| `—`（来源行） | 会话整体未计价时，各来源的 0 元不是"真花 0"，是"分不出来" |
+| `工具结果 1,208 字符` | 光秃秃的 `↑1,208` 没人知道箭头指什么 |
+| `本次 180,000 tok` | 没有主语的 `180,000 tok` 会被当成累计上下文 |
+| `共 5 个有金额来源` | 过滤掉零金额来源后必须说明，否则像渲染 bug |
+
 ## 9. 验证手段
 
 | 手段 | 覆盖 | 产出 |
 |---|---|---|
-| `node --test test/*.test.mjs` | 191 例断言 | 计价、归因、预算回滞、幂等、身份、卸载残留、面板 SSR、客户端产物形态 |
+| `node --test test/*.test.mjs` | 206 例断言 | 计价、归因、预算回滞、幂等、身份、卸载残留、面板 SSR、客户端产物形态 |
 | `node scripts/build-client.mjs` | 产物形态 | 从源码重建 `lib/client.js`（零 import/export 的 loader 包） |
 | `scripts/bench.mjs --gate` | 热路径 + 内存 | 上表数字 |
 | `scripts/smoke-registry.mjs` | 插件装配契约 | 假 ctx 下工具注册/提供不抛 |
 | `scripts/smoke-dsh.mjs` | 宿主契约 | 右栏 tab、seat、事件形状 |
 | `scripts/smoke-panel.mjs` | 面板链路 | PANEL-1..10：落盘 → 读回口径一致 |
-| `scripts/render-panel.mjs` | 视觉 | 真实 `renderPayload()` 输出，三列宽度 |
+| `scripts/render-panel.mjs` | 视觉（单状态） | 真实 `renderPayload()` 输出，三列宽度 |
+| `scripts/render-states.mjs` | 视觉（状态矩阵） | 7 个状态并排：常规/空态/费率未知/费率被拒/展开/预算/300px |
+| `test/client-lifecycle.test.mjs` | 客户端生命周期 | 登记可逆、重复 apply、无 slots 降级、登记抛错不冒泡 |
 
 **SKIP 不等于通过**：冒烟脚本找不到 DSH 运行时用退出码 2 表示 SKIP，`prepublish.sh` 第 6 步把 SKIP 判 FAIL。
 这条是为了避免"换台机器 CI 照样全绿，但契约一条没验"。

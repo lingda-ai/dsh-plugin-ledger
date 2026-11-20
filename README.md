@@ -225,6 +225,23 @@ window.__ModuleLoader__.load({
 - 读取：浏览器侧 `workspaceFiles` remote，相对路径 `stat` 换绝对路径再 `read`。
 - 打不开面板时先看 `ctx.ledger.panel`：`{enabled, dir, stats}`。
 
+## 面板状态总表（改 UI 前先看这个）
+
+`node scripts/render-states.mjs` 会把面板在 **7 个关键状态**下并排画出来：
+
+| 状态 | 它要回答的问题 |
+|---|---|
+| 常规（多来源） | 一次会话的钱花在哪、最贵一步是谁 |
+| 空态 | 第一次打开为什么没数据、接下来会记什么 |
+| 费率未知 | 算不出来时是否显式说原因，而不是给 0 |
+| 费率文件被拒 | 用户改的价没生效时，有没有显性地告诉他 |
+| 多来源展开 | 来源超过 6 个时的折叠/展开是否还读得下去 |
+| 预算告急 | 「还能问几次」在 92% 时是不是比百分比更可行动 |
+| 极窄 300px | 右栏分栏后是否还能用（截断顺序是否合理） |
+
+改文案或布局后跑一次、肉眼过一遍再提交——单测只能断言"有没有这句话"，
+判断不了"这句话读起来是不是那个意思"。
+
 ## 面板链路冒烟
 
 ```bash
@@ -460,7 +477,8 @@ dsh plugin add @lingda-ai/ledger
 node --test test/*.test.mjs                 # 188 例断言
 node --expose-gc scripts/bench.mjs --gate   # 性能门禁（热路径 <6µs、长会话 <8µs/<20MB）
 bash scripts/ci.sh                          # 单测 + 基准 + 三个冒烟
-node scripts/render-panel.mjs               # 刷新 docs/panel-preview.html
+node scripts/render-panel.mjs               # 刷新 docs/panel-preview.html（单状态深看）
+node scripts/render-states.mjs              # 刷新 docs/panel-states.html（7 个状态并排）
 ```
 
 协议与身份字段见 [`docs/wire-format.md`](docs/wire-format.md)——那里冻结的是**不可逆**的部分
