@@ -321,6 +321,27 @@ bash scripts/prepublish.sh
     正文（`sidebar.right.pane.tab`）待 `dsh-client-ui-slots` 契约核实后接入，见 `docs/spikes.md` 末节。
 
 
+### 不装 key 也能验证整条链路
+
+```bash
+node scripts/verify-real-host.mjs --cwd /path/to/dsh-root
+```
+
+宿主 provider 的端点可配（`$DEEPSEEK_BASE_URL`），所以脚本能在**没有任何真实凭据**的机器上：
+起一个本地 Messages 兼容端点（返回固定 usage）→ 让 DSH 真发一次请求 → 读账本快照 → 逐项核对金额、
+四档拆分、缓存节省、路由、时间格式。7 项断言，全部可复现。
+
+**它证明什么、不证明什么**（这点必须说清楚）：
+
+| 证明 | 不证明 |
+|---|---|
+| 事件真的收到、形状解析对 | 模型跑得好不好 |
+| 计价公式与手算一致 | 真实 token 分布下的表现 |
+| 快照真的落盘、字段类型对 | 右栏 UI 在浏览器里的呈现（需人看） |
+| 面板读得到、金额不自适应吞 0 | — |
+
+模型是固定文本、token 是脚本给的固定值，所以它是**链路证据**，不是效果证据。
+
 ## 安装（DSH 侧外部插件）
 
 ```bash
