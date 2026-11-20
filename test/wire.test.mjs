@@ -34,7 +34,7 @@ test('流水行自带三件不可逆字段：eventId / measures / 身份线索',
     turn: 1,
     step: 1,
     eventType: 'assistant/message',
-    pluginSource: '@lingda/tools/hr',
+    pluginSource: '@lingda-ai/tools/hr',
     at: 1_700_000_000_000,
     usage: { inputTokens: 100, outputTokens: 20, cacheReadTokens: 0, cacheWriteTokens: 0, complete: true },
     cost: { kind: 'known', amount: 0.001, currency: 'CNY' },
@@ -67,7 +67,7 @@ test('上报投影走白名单：不带 summary，也不带 gen_ai.* 原始字�
     turn: 1,
     step: 1,
     eventType: 'assistant/message',
-    pluginSource: '@lingda/tools/hr',
+    pluginSource: '@lingda-ai/tools/hr',
     summary: '查了考勤表 sk-abcdefgh1234',
     usage: { inputTokens: 100, outputTokens: 20, cacheReadTokens: 0, cacheWriteTokens: 0, complete: true },
     cost: { kind: 'known', amount: 0.001, currency: 'CNY' },
@@ -75,7 +75,7 @@ test('上报投影走白名单：不带 summary，也不带 gen_ai.* 原始字�
   const wire = wireEventOf(row)
   assert.equal(wire.wireVersion, WIRE_VERSION)
   assert.equal(wire.operation, 'assistant/message')
-  assert.equal(wire.plugin, '@lingda/tools/hr')
+  assert.equal(wire.plugin, '@lingda-ai/tools/hr')
   assert.equal(wire.summary, undefined, 'summary 不上报（服务端结构上收不到文本）')
   assert.equal(wire['gen_ai.usage.input_tokens'], undefined, '上报口径是 measures，不是 gen_ai 字段')
   assert.deepEqual(wire.measures, [{ unit: 'token.input', value: 100 }, { unit: 'token.output', value: 20 }])
