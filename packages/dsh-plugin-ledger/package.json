@@ -1,7 +1,7 @@
 {
   "name": "@lingda-ai/dsh-plugin-ledger",
-  "version": "0.1.2",
-  "description": "DSH 插件搜索入口：运行时账本（成本/用量观测）。实现在 @lingda-ai/ledger，本包仅转发装配。",
+  "version": "0.1.4",
+  "description": "DSH 插件搜索入口：运行时账本（成本/用量观测）。自包含单包，不依赖其他 npm 包，便于从镜像源安装。",
   "license": "Apache-2.0",
   "keywords": [
     "dsh",
@@ -14,16 +14,36 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ],
+      "platform": "web"
     }
   },
   "files": [
+    "lib",
     "cordis.patch.yml",
-    "README.md"
+    "README.md",
+    "docs"
   ],
   "publishConfig": {
     "access": "public"
   },
-  "dependencies": {
-    "@lingda-ai/ledger": "0.1.2"
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-llm": "*"
+  },
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

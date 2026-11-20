@@ -360,6 +360,17 @@ bash scripts/publish.sh           # 六项前置检查 → 门禁 → 发布 →
 
 ## 安装（DSH 侧外部插件）
 
+### 从 npm 安装（推荐）
+
+```bash
+dsh plugin --profile <profile> add @lingda-ai/dsh-plugin-ledger@0.1.4
+```
+
+`@lingda-ai/dsh-plugin-ledger` 是**自包含单包**（lib 直接打进包内，零运行时依赖），与 `@lingda-ai/ledger` 内容一致。之所以做单包，是因为国内镜像源（华为云、阿里云等）对"老包的新版本"同步滞后：跨包硬依赖会直接报 `ERR_PNPM_NO_MATCHING_VERSION`，而单包只要镜像能取到它就够。
+
+若镜像仍报找不到版本，任选其一：把 DSH 的安装源切到 `https://registry.npmjs.org`；或等几分钟让镜像回源；或用下面的 git 方式。
+
+
 ```bash
 # 代码仓（已公开，可直接 clone/链接）
 git clone https://gitee.com/linzhengtong/dsh-plugin-ledger.git

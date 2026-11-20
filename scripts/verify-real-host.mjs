@@ -128,6 +128,13 @@ if (!existsSync(snapDir)) {
 }
 if (!existsSync(snapDir)) mkdirSync(snapDir, { recursive: true })
 const file = readdirSync(snapDir).filter((f) => f.endsWith('.json') && f.includes(session.sessionId))[0]
+if (!file) {
+  console.error(`✗ 会话 ${session.sessionId} 没有快照；目录现有：${readdirSync(snapDir).join(', ')}`)
+  console.error('--- DSH stderr ---\n' + stderr.slice(-1500))
+  child.kill()
+  stub.close()
+  process.exit(1)
+}
 const payload = JSON.parse(readFileSync(join(snapDir, file), 'utf8'))
 const totals = payload.totals ?? {}
 const cost = totals.cost ?? {}
