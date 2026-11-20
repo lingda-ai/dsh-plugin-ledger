@@ -142,7 +142,7 @@ import {
 export function createFetchView(ctx) {
   return async function fetchView(sessionId, opts = {}) {
     if (typeof sessionId !== 'string' || sessionId.length === 0) return null
-    const files = optionalService(ctx, 'remote')?.workspaceFiles
+    const files = workspaceFilesOf(ctx)
     if (!files || typeof files.stat !== 'function' || typeof files.read !== 'function') {
       return { error: '宿主未提供 workspaceFiles 通道' }
     }
@@ -195,6 +195,43 @@ export function createFetchView(ctx) {
     } catch {
       return { error: '快照不是合法 JSON（可能正写到一半）' }
     }
+  }
+}
+
+/**
+ * 取 workspaceFiles remote。
+ *
+ * 真机报错：`cannot get property "remote.workspaceFiles" without inject`。
+ * 原因：remote 是按 `remote.<name>` 为 key 注册的服务，`ctx.remote.workspaceFiles`
+ * 这种点号访问最终会落到 ctx 代理上做 inject 校验——没声明就抛，而它在 apply 之后、
+ * 面板读取时才第一次触发（所以表现为"面板读取失败"，不是启动失败）。
+ *
+ * 正确姿势是用 `ctx.get('remote.workspaceFiles')` 这条**不受 inject 约束**的通道
+ * （cordis 自己在服务目录里就把 ctx.get 标成 optional access）。
+ * 逐级兜底，任何一层抛错都当作"没有这条通道"。
+ * @param {any} ctx
+ * @returns {any|null}
+ */
+function workspaceFilesOf(ctx) {
+  if (typeof ctx?.get === 'function') {
+    try {
+      const direct = ctx.get('remote.workspaceFiles')
+      if (direct) return direct
+    } catch {
+      // 某些版本只注册了命名空间，继续往下试
+    }
+    try {
+      const namespace = ctx.get('remote')
+      const files = namespace?.workspaceFiles
+      if (files) return files
+    } catch {
+      // 命名空间访问同样可能被代理拦，忽略
+    }
+  }
+  try {
+    return ctx?.remote?.workspaceFiles ?? null
+  } catch {
+    return null
   }
 }
 

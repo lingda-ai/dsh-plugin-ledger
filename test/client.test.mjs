@@ -410,3 +410,32 @@ test('节省额未知（费率未知）时也不画，不拿 0 冒充', () => {
   const html = htmlOf(view)
   assert.ok(!html.includes('缓存命中已省'))
 })
+
+test('workspaceFiles 必须走 ctx.get 的免检通道（真机：点号访问会撞 inject 守门）', async () => {
+  // 还原真机语义：ctx.remote.workspaceFiles 这种点号访问会被代理拦下抛错，
+  // 只有 ctx.get('remote.workspaceFiles') 是允许的
+  const files = {
+    async stat() {
+      return { ok: true, value: { absolutePath: '/x.json', bytes: 10 } }
+    },
+    async read() {
+      return { ok: true, value: { offset: 1, lines: 1, text: '{"totals":{"entries":1}}', eof: true } }
+    },
+  }
+  const base = {
+    get(name) {
+      if (name === 'remote.workspaceFiles') return files
+      return null
+    },
+  }
+  const ctx = new Proxy(base, {
+    get(target, prop) {
+      if (prop in target) return target[prop]
+      throw new Error(`cannot get property "${String(prop)}" without inject`)
+    },
+  })
+
+  const view = await createFetchView(ctx)('session-x', {})
+  assert.equal(view?.error, undefined, `不应失败：${view?.error}`)
+  assert.equal(view.totals.entries, 1)
+})
