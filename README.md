@@ -349,8 +349,11 @@ node scripts/verify-real-host.mjs --cwd /path/to/dsh-root   # 只跑真机那一
 发布前先在 npm 上确认 scope 归属：
 
 ```bash
-pnpm publish --access public      # 用 pnpm，不用 npm（本环境 npm pack 会崩）
+bash scripts/publish.sh           # 六项前置检查 → 门禁 → 发布 → 回读 registry 确认
 ```
+
+直接 `pnpm publish` 也能发，但脚本会先挡住四类常见翻车：未登录、org 不存在、版本已发过、工作区有未提交改动。
+用 pnpm 而不用 npm —— 本环境 `npm pack` 会崩（`Exit handler never called`）。
 
 发布包里**只有** `lib/`、`cordis.patch.yml`、`README.md`、`LICENSE` 和两份技术文档；
 `docs/business-plan.md` 属内部材料，不进包。`prepublishOnly` 会先跑一遍单测，测不过发不出去。
