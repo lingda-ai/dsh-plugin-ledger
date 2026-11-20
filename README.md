@@ -324,7 +324,8 @@ bash scripts/prepublish.sh
 ### 不装 key 也能验证整条链路
 
 ```bash
-node scripts/verify-real-host.mjs --cwd /path/to/dsh-root
+bash scripts/ci.sh --real-host        # 门禁全跑，含真机端到端（需 DSH_ROOT）
+node scripts/verify-real-host.mjs --cwd /path/to/dsh-root   # 只跑真机那一段
 ```
 
 宿主 provider 的端点可配（`$DEEPSEEK_BASE_URL`），所以脚本能在**没有任何真实凭据**的机器上：

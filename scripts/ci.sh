@@ -29,4 +29,12 @@ run_smoke scripts/smoke-dsh.mjs
 echo "== 面板链路冒烟（落盘 → 读回，口径一致）=="
 node scripts/smoke-panel.mjs
 
+echo "== 真机端到端（默认 SKIP；加 --real-host 或 REAL_HOST=1 开启）=="
+if [[ "${1:-}" == "--real-host" || "${REAL_HOST:-0}" == "1" ]]; then
+  # 真机链路需要能被 DSH 真实加载的 profile，故必须指定 DSH 工程根
+  node scripts/verify-real-host.mjs --cwd "${DSH_ROOT:?--real-host 需要 DSH_ROOT（含 node_modules/.bin/dsh 的目录）}" --profile "${DSH_PROFILE:-ledger-test}"
+else
+  echo "SKIP  scripts/verify-real-host.mjs（它证明的是链路与计价，不是覆盖率；提交前建议手动跑一次）"
+fi
+
 echo "全部通过"
