@@ -10,6 +10,12 @@ ENC_NAME=$(node -p "encodeURIComponent(require('./package.json').name)")
 
 fail() { echo "✗ $1"; exit 1; }
 
+# 环境里的 NPM_CONFIG_REGISTRY 优先级高于 ~/.npmrc，若指向镜像站会导致 token 对不上
+export NPM_CONFIG_REGISTRY=https://registry.npmjs.org
+if [ "${NPM_REGISTRY_ORIG:-}" != "" ] && [ "$NPM_REGISTRY_ORIG" != "https://registry.npmjs.org" ]; then
+  echo "! 原 registry 为 $NPM_REGISTRY_ORIG，本次强制使用官方源"
+fi
+
 echo "== 1/6 登录态 =="
 who=$(npm whoami 2>/dev/null || true)
 [ -n "$who" ] || fail "未登录。先执行 npm login，或把 token 写进 ~/.npmrc"
@@ -42,7 +48,7 @@ bash scripts/ci.sh > /tmp/publish-ci.log 2>&1 || { tail -20 /tmp/publish-ci.log;
 echo "  全绿"
 
 echo "== 6/6 发布 =="
-pnpm publish --access public --no-git-checks 2>&1 | tail -6
+pnpm publish --access public --no-git-checks --registry https://registry.npmjs.org 2>&1 | tail -6
 
 echo "== 回读 registry 确认 =="
 sleep 3
