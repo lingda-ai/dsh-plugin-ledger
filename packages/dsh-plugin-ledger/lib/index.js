@@ -145,8 +145,14 @@ export function apply(ctx, rawConfig) {
           sources: (sessionId, opts) => store.sources(sessionId, opts),
           // 面板必须知道"这些金额是拿哪套价算的"，否则数字不可信
           pricing: pricingMeta,
+          // 标题：让面板能说"这笔钱是哪段对话花的"
+          titleOf: (sessionId) => titles.get(sessionId) ?? null,
         })
       : null
+
+  // 会话标题：右栏只显示 "sessio…affe8" 时用户没法把它和对话对上。
+  // 标题通过 session/event 的 session/title 事件到达（数据在 data 里，与其它事件一致）。
+  const titles = new Map()
 
   // 身份线索（actor/project/deviceId）：解析只发生在会话第一条事件上，热路径零成本。
   // 读的是 .git/config 与 ~/.gitconfig 两个小文件，**不起 git 子进程**。
@@ -166,6 +172,10 @@ export function apply(ctx, rawConfig) {
     const sid = session?.id
     if (typeof sid === 'string' && !sessionRoots.has(sid) && typeof session?.header?.cwd === 'string') {
       sessionRoots.set(sid, session.header.cwd)
+    }
+    if (event?.type === 'session/title' && typeof sid === 'string') {
+      const payload = event?.data ?? event
+      if (typeof payload?.title === 'string' && payload.title.length > 0) titles.set(sid, payload.title)
     }
     ledger.onSessionEvent(session, event)
     // 节流落盘在 publisher 内部完成：热路径只多一次 Map 读 + 比较
@@ -190,6 +200,7 @@ export function apply(ctx, rawConfig) {
     ledger.forget(id)
     traceSink?.remove(id)
     sessionRoots.delete(id)
+    titles.delete(id)
     store.drop(id)
   })
 

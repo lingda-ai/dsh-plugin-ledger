@@ -38,11 +38,13 @@ function isoOf(at) {
   return null
 }
 
-export function buildPanelPayload(snapshot, sources, { maxBytes = 262144, budget = null, overview = null, pricing = null } = {}) {
+export function buildPanelPayload(snapshot, sources, { maxBytes = 262144, budget = null, overview = null, pricing = null, title = null, titleOf = null } = {}) {
   const base = {
     version: SNAPSHOT_VERSION,
     generatedAt: isoOf(snapshot?.generatedAt),
     sessionId: snapshot?.sessionId ?? null,
+    // 会话标题：面板用它代替 "sessio…affe8"，用户才认得出是哪段对话
+    sessionTitle: typeof title === 'string' && title.length > 0 ? title : null,
     // 面板口径的派生字段集中在这里算一次，避免浏览器半各算一套
     totals: withPanelTotals(snapshot?.totals ?? null),
     topSources: snapshot?.topSources ?? [],
@@ -51,7 +53,17 @@ export function buildPanelPayload(snapshot, sources, { maxBytes = 262144, budget
     // 最贵一步：只从"最近这段"里挑，面板会明说是"最近最贵"，不冒充全程最贵
     peak: peakOf((snapshot?.recent ?? []).map(compactEntry)),
     // 跨会话对比：只给数字，不给别的内容（面板按 lastAt 排序取前几条）
-    overview: Array.isArray(overview) ? overview.slice(0, 8).map(compactSession) : null,
+    overview: Array.isArray(overview)
+      ? overview.slice(0, 8).map((row) => {
+          const compact = compactSession(row)
+          // 其他会话也尽量给标题：一排 sessio…910 对用户没有区别度
+          if (compact !== null && typeof titleOf === 'function') {
+            const t = titleOf(row?.sessionId)
+            if (typeof t === 'string' && t.length > 0) compact.title = t
+          }
+          return compact
+        })
+      : null,
     // 预算只给面板读数用：limit 为 null 表示未启用，面板不画进度条
     budget: normalizeBudget(budget, snapshot?.totals),
     // 费率来源：面板必须能说出"这些钱是按哪套价算的"。
@@ -242,6 +254,8 @@ export function createSnapshotPublisher(options) {
         budget,
         overview: ov?.sessions ?? ov,
         pricing: options.pricing ?? null,
+        title: typeof options.titleOf === 'function' ? options.titleOf(sessionId) : null,
+        titleOf: options.titleOf,
       })
       // 多行写：浏览器侧 read 是按行取页的，单行超长 JSON 会被页宽截断
       const body = JSON.stringify(payload, null, 2)

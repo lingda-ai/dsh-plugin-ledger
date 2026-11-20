@@ -1,6 +1,6 @@
 {
   "name": "@lingda-ai/dsh-plugin-ledger",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "DSH 插件搜索入口：运行时账本（成本/用量观测）。自包含单包，不依赖其他 npm 包，便于从镜像源安装。",
   "license": "Apache-2.0",
   "keywords": [

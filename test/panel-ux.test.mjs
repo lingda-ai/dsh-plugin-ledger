@@ -11,7 +11,7 @@
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { renderPayload } from '../lib/panel-view.js'
+import { renderPayload, formatRelative, formatCents, summaryTextOf, headerLabelOf } from '../lib/panel-view.js'
 
 const React = { createElement: (type, props, ...children) => ({ type, props, children }) }
 
@@ -153,10 +153,11 @@ test('页脚用「快照 HH:MM:SS」而不是「快照生成于」', () => {
   assert.match(flat(view()), /快照 2026-11-20 /)
 })
 
-test('预算缺席时给一行配置提示，而不是整段静默消失', () => {
+test('预算缺席时给可粘贴示例 + 按本次均价换算的次数', () => {
   const out = flat(view())
   assert.match(out, /未设预算/)
-  assert.match(out, /budget\.limit/)
+  assert.match(out, /budget: \{ limit: 0\.5 \}/)   // 能直接抄的配置
+  assert.match(out, /¥0\.5 ≈ \d+ 次调用/)          // 用户不知道 0.5 元是多少次，得换算
 })
 
 test('最贵一步带轮次与占比（只说"最贵"会让人去优化一个 11% 的峰值）', () => {
@@ -176,4 +177,66 @@ test('命中一档不占大头时不硬凑结论', () => {
   const v = view()
   v.totals.cost.parts = { input: 0.03, output: 0.016, cacheRead: 0.0019, cacheWrite: 0 }
   assert.equal(flat(v).includes('钱主要花在重复送出的上下文'), false)
+})
+
+test('相对时间：刚更新过要说「刚刚」，不是让人自己拿现在减时间戳', () => {
+  const now = Date.UTC(2026, 10, 20, 14, 0, 0)
+  assert.equal(formatRelative(now - 3_000, now), '刚刚')
+  assert.equal(formatRelative(now - 42_000, now), '42 秒前')
+  assert.equal(formatRelative(now - 5 * 60_000, now), '5 分钟前')
+  assert.equal(formatRelative(now - 3 * 3_600_000, now), '3 小时前')
+  assert.equal(formatRelative(null, now), '')
+})
+
+test('小额换成人话：¥0.0113 → 约 1.1 分；1 元以上不啰嗦', () => {
+  assert.equal(formatCents(0.0113, 'CNY'), '约 1.1 分')
+  assert.equal(formatCents(0.0005, 'CNY'), '不足 1 分')
+  assert.equal(formatCents(1.2, 'CNY'), null)
+  assert.equal(formatCents(0.5, 'USD'), null)
+})
+
+test('复制摘要：一段能直接贴进周报的文本，含总额/次数/缓存节省/最贵一步/费率来源', () => {
+  const text = summaryTextOf({
+    sessionId: 'session-abc',
+    generatedAt: '2026-11-20T14:32:42.000Z',
+    totals: {
+      entries: 9,
+      cost: { amount: 0.0479, currency: 'CNY', unknownEntries: 0, parts: { input: 0.0033, output: 0.011, cacheRead: 0.0336, cacheWrite: 0 } },
+      saved: { amount: 1.6467, currency: 'CNY' },
+      savedShare: 0.9717,
+    },
+    peak: { amount: 0.0069, turn: 7, step: 6 },
+    pricing: { kind: 'file', asOf: '2026-11-20' },
+  })
+  assert.match(text, /会话|session-abc/)
+  assert.match(text, /累计 ¥0\.0479（约 4\.8 分） · 9 次调用/)
+  assert.match(text, /缓存已省 ¥1\.6467（少花 97\.2%）/)
+  assert.match(text, /四档：/)
+  assert.match(text, /最贵一步 T7·S6 ¥0\.0069 · 占 14\.4%/)
+  assert.match(text, /按自定义费率估算/)
+})
+
+test('摘要：未计价时如实写「未计价」，不写 0', () => {
+  const text = summaryTextOf({ sessionId: 's', totals: { entries: 2, cost: { amount: null, currency: 'CNY', unknownEntries: 2 } } })
+  assert.match(text, /累计 未计价/)
+  assert.match(text, /2 条费率未知/)
+})
+
+test('页脚给出距今时间，让「这数有多旧」一眼可见', () => {
+  const v = view()
+  v.generatedAt = new Date(Date.now() - 5_000).toISOString()
+  assert.match(flat(v), /快照 .* · 刚刚/)
+})
+
+test('有标题时头部用标题，而不是让人对着 sessio…affe8 猜', () => {
+  assert.equal(headerLabelOf({ sessionTitle: '修复账本面板崩溃' }, 'session-abc-def'), '修复账本面板崩溃')
+})
+
+test('没有标题时退回短 id（老快照/未产生标题的会话）', () => {
+  assert.match(headerLabelOf({}, 'session-4eae8a7c-58e5'), /sessio…/)
+})
+
+test('空态也用标题打招呼', () => {
+  const out = flat({ totals: { entries: 0 }, recent: [], sources: [], sessionTitle: '修复账本面板崩溃' })
+  assert.match(out, /修复账本面板崩溃/)
 })

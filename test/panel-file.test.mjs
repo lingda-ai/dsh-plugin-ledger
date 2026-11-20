@@ -274,3 +274,17 @@ test('生成时间统一成 ISO 字符串（store 给的是数字，面板按字
   assert.match(payload.generatedAt, /^\d{4}-\d{2}-\d{2}T/)
   assert.equal(new Date(payload.generatedAt).getTime(), at)
 })
+
+test('会话标题会落进 payload（面板用它代替短 id）', () => {
+  const snapshot = {
+    sessionId: 'session-t',
+    generatedAt: 1,
+    totals: { cost: { amount: 0.1, currency: 'CNY', knownEntries: 1, unknownEntries: 0, parts: {} }, tokens: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 0, missing: 0 }, entries: 1 },
+    topSources: [],
+    recent: [],
+  }
+  const withTitle = buildPanelPayload(snapshot, null, { title: '修复账本面板崩溃' })
+  assert.equal(withTitle.payload.sessionTitle, '修复账本面板崩溃')
+  const noTitle = buildPanelPayload(snapshot, null, {})
+  assert.equal(noTitle.payload.sessionTitle, null)
+})

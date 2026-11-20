@@ -49,6 +49,7 @@ function payload(overrides = {}) {
     version: 1,
     generatedAt: '2026-11-20T14:32:42.000Z',
     sessionId: SESSION,
+    sessionTitle: '修复账本面板崩溃',
     totals: {
       cost: {
         amount: 0.0479,
@@ -90,8 +91,9 @@ function head(sessionId = SESSION) {
     'div',
     { style: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px 8px', borderBottom: '1px solid #eef1f5' } },
     h('span', { style: { fontSize: 13, fontWeight: 600, color: '#1f2733' } }, '账本'),
-    h('span', { style: { fontSize: 11, color: '#8a93a0' } }, `会话 ${sessionId.slice(0, 12)}…`),
-    h('button', { type: 'button', style: { marginLeft: 'auto', border: '1px solid #d8dee7', background: '#fff', borderRadius: 7, padding: '3px 9px', fontSize: 11.5, color: '#5a6472' } }, '刷新'),
+    h('span', { style: { fontSize: 11, color: '#8a93a0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 } }, '修复账本面板崩溃'),
+    h('button', { type: 'button', style: { marginLeft: 'auto', border: '1px solid #d8dee7', background: '#fff', borderRadius: 7, padding: '3px 9px', fontSize: 11.5, color: '#5a6472' } }, '复制摘要'),
+    h('button', { type: 'button', style: { border: '1px solid #d8dee7', background: '#fff', borderRadius: 7, padding: '3px 9px', fontSize: 11.5, color: '#5a6472' } }, '刷新'),
   )
 }
 
