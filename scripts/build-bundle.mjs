@@ -4,6 +4,7 @@
 import { cp, readFile, writeFile, rm, stat } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { buildClient } from './build-client.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const dest = join(root, 'packages/dsh-plugin-ledger')
@@ -45,5 +46,11 @@ const next = {
 delete next.dependencies
 await writeFile(join(dest, 'package.json'), JSON.stringify(next, null, 2) + '\n')
 
+// 4. 客户端产物必须按本包的包名重建：
+//    __ModuleLoader__.load({ id }) 的 id 就是宿主模块表的索引键，直接拷过来的
+//    那份 id 写的是 @lingda-ai/ledger，装成 dsh-plugin-ledger 后会对不上。
+const clientArtifact = await buildClient(dest)
+
 const size = (await stat(join(dest, 'lib/index.js'))).size
 console.log(`已同步 ${main.name}@${main.version} -> ${next.name}@${next.version}（lib/index.js ${size} B，零运行时依赖）`)
+console.log(`客户端产物 ${clientArtifact.out}（id=${clientArtifact.id}，${clientArtifact.bytes} B）`)

@@ -33,14 +33,6 @@ DSH 右侧栏的**会话成本仪表**（生态发布名 `dsh-plugin-ledger`，�
 3. **未知即未知**：费率缺失、用量不全、工具来源不明，一律显式返回 unknown
    及原因，**绝不用 0 或估算值填坑**。
 
-## 三条铁律
-
-1. **采集只订阅**：不改 session/event、不 emit、不在关键路径上做重活。
-2. **决策只改配置**：只经 `agent/request` 返回替换的 `LlmCallConfig`，
-   不在工具执行中途中断。
-3. **未知即未知**：费率缺失、用量不全、工具来源不明，一律显式返回 unknown
-   及原因，**绝不用 0 或估算值填坑**。
-
 ## 架构
 
 ```
@@ -108,7 +100,8 @@ ledger_query({ op?, sessionId?, lastN?, limit?, sort? })  // op=snapshot|sources
 | `lib/guard.js` | 预算守卫 | 双通道 + 回滞，只在跨阈值投递一次 |
 | `lib/trace.js` | 行为流水 | OTel `gen_ai.*` 命名 + 默认脱敏 |
 | `lib/audit-tool.js` | `ledger_query` | 返回摘要而非原始 JSONL |
-| `lib/client.js` | 浏览器半 | M0 为空，保证可加载可卸载 |
+| `lib/client.js` | 浏览器半**产物** | 构建生成，勿手改；loader 形态见下 |
+| `lib/client.src.js` | 浏览器半源码 | 单测与脚本用它，改完跑 `npm run build:client` |
 
 ## 配置示例
 
@@ -151,7 +144,7 @@ trace:
 ## 开发
 
 ```bash
-node --test test/*.test.mjs    # 38 例
+node --test test/*.test.mjs    # 188 例
 npm run bench                  # 热路径基准（需 --expose-gc）
 bash scripts/ci.sh             # 等价 CI：单测 + 性能门禁 + 契约冒烟
 ```
@@ -180,9 +173,38 @@ dsh --profile <已有profile> --patch <仓库>/mount/ledger-dev.overlay.yml
 先 `--dump-config` 看装配结果，确认 `lingda-ledger` 那一条在那里。
 
 
-零构建、零运行时依赖：不 import 任何 `@deepseek-ai/*` 做业务逻辑；
-唯一例外是预算事实要用的 `createUserMessage`，走可选 peer + 动态 import，
-拿不到就自动降级为"只经 ledger_query 拉取"。
+零运行时依赖：Host 半不 import 任何 `@deepseek-ai/*` 做业务逻辑；唯一例外是预算事实要用的
+`createUserMessage`，走可选 peer + 动态 import，拿不到就自动降级为"只经 ledger_query 拉取"。
+
+**客户端半边有一步构建**（`npm run build:client`）：原因见下一节，这不是可选项。
+
+## 客户端产物：为什么 `lib/client.js` 是生成的
+
+`dsh-client-modules` 的 Node 半侧会把每个包的 `client.js` **原样拼接**成一个 combo 脚本
+（`/plugins/??a/client.js,b/client.js&rev=…`），浏览器按 **classic script** 解析。因此客户端
+入口里不能出现任何 `import` / `export` 语句。0.1.4 直接发布了 ESM 源码，结果重启时整页抛
+`SyntaxError: Cannot use import statement outside a module`，`client-modules` 报 import failed，
+Desktop 宿主直接停住（崩溃记录见 `~/Library/Logs/DSH Desktop/`）。
+
+产物必须是这个形态（与宿主自带插件、`dsh-ppt`、`@linxin666/dsh-client-ui-skill-explorer` 一致）：
+
+```js
+window.__ModuleLoader__.load({
+  id: "@lingda-ai/dsh-plugin-ledger",   // 必须等于安装后的包名，宿主按包名索引
+  factory: (require) => {
+    var module = { exports: {} }, exports = module.exports
+    // …打包进来的 panel-path / tool-size / panel-view / client.src…
+    exports.apply = apply               // 宿主调它，ctx 就是浏览器侧 ctx
+    return module.exports
+  },
+})
+```
+
+- 源在 `lib/client.src.js` + `lib/panel-view.js` + `lib/panel-path.js` + `lib/tool-size.js`；
+- `node scripts/build-client.mjs` 合并去模块语法后生成 `lib/client.js`（改完必须重跑并提交产物）；
+- React 只能来自 factory 的 `require("react")`，产物里不再有 `import('react')`；
+- `test/client-bundle.test.mjs` 在 vm 里用假 `__ModuleLoader__` 加载产物，断言"零 import/export、
+  id 等于包名、apply 能登记 tab"——这条测试的存在就是为了不再犯同一个错。
 
 ## 右侧栏面板
 
@@ -429,13 +451,13 @@ dsh plugin add @lingda-ai/ledger
 - **压缩省下的上下文不折算金额**：只报 token 差，理由见上。
 - **内置价表的日期是 `2026-11-19`**：厂商调价后需人工更新 `lib/pricing-table.js`，
   面板脚注会显示这个日期，不会假装"实时"。
-- **npm 尚未发布**：代码仓已公开（`gitee.com/linzhengtong/dsh-plugin-ledger`，Apache-2.0），
-  但 `private: true` 保留、npm 未认证，所以现在还不能 `npm install`。
+- **npm 上发的是自包含包**：`@lingda-ai/dsh-plugin-ledger`（当前 0.1.4）内容与主包一致，
+  可直接 `dsh plugin add`；`@lingda-ai/ledger` 是主包名，不保证在 registry 上同步存在。
 
 ## 开发
 
 ```bash
-node --test test/*.test.mjs                 # 158 例断言
+node --test test/*.test.mjs                 # 188 例断言
 node --expose-gc scripts/bench.mjs --gate   # 性能门禁（热路径 <6µs、长会话 <8µs/<20MB）
 bash scripts/ci.sh                          # 单测 + 基准 + 三个冒烟
 node scripts/render-panel.mjs               # 刷新 docs/panel-preview.html

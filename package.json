@@ -53,7 +53,8 @@
   },
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "prepublishOnly": "node --test test/*.test.mjs",
+    "build:client": "node scripts/build-client.mjs",
+    "prepublishOnly": "node scripts/build-client.mjs && node --test test/*.test.mjs",
     "bench": "node --expose-gc scripts/bench.mjs"
   },
   "peerDependencies": {

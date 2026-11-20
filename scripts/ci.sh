@@ -3,6 +3,13 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+echo "== 客户端产物构建（产物形态错了会让宿主整页崩）=="
+node scripts/build-client.mjs
+git diff --quiet -- lib/client.js || {
+  echo "FAIL  lib/client.js 与源不一致：改完客户端源码请提交重建后的产物" >&2
+  exit 1
+}
+
 echo "== 单元测试 =="
 node --test test/*.test.mjs
 

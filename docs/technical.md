@@ -246,7 +246,8 @@ token 只是 `measures` 里的一种单位。计划中的第二个来源（Trae 
 
 | 手段 | 覆盖 | 产出 |
 |---|---|---|
-| `node --test test/*.test.mjs` | 158 例断言 | 计价、归因、预算回滞、幂等、身份、卸载残留、面板 SSR |
+| `node --test test/*.test.mjs` | 188 例断言 | 计价、归因、预算回滞、幂等、身份、卸载残留、面板 SSR、客户端产物形态 |
+| `node scripts/build-client.mjs` | 产物形态 | 从源码重建 `lib/client.js`（零 import/export 的 loader 包） |
 | `scripts/bench.mjs --gate` | 热路径 + 内存 | 上表数字 |
 | `scripts/smoke-registry.mjs` | 插件装配契约 | 假 ctx 下工具注册/提供不抛 |
 | `scripts/smoke-dsh.mjs` | 宿主契约 | 右栏 tab、seat、事件形状 |
@@ -295,14 +296,15 @@ token 只是 `measures` 里的一种单位。计划中的第二个来源（Trae 
 3. **内置价表带固定基准日** `2026-11-19`：厂商调价可写 `~/.dsh/ledger/pricing.json` 覆盖，
    无需改代码；写坏了会在面板顶部警示而不是静默回退。仍是"人工提供价格"，不假装实时。
 4. **`private: true` 未改**：npm registry 未定。代码仓已在 Gitee。
-5. **未真机验证五项**（`ctx.tools.register` 真注册、真进程全量派发、`ctx.provide` 冲突、
-   宿主是否真给 `ctx.slots`、插件侧 `workspaceFiles` 权限）——都需能 boot DSH 且带凭据的进程。
+5. **真机验证的现状**：`ctx.tools.register` 真注册、真进程全量派发、`ctx.provide` 无冲突、
+   `ctx.slots` 存在、`workspaceFiles` 可读，这五项在 0.1.4 装机后已全部被真实运行证伪/证实
+   （工具可用、右栏可挂、面板通道可读）；而客户端入口形态**被证伪过一次**，见 12.5。
 6. **团队版零代码**：身份、上报、聚合、对账均未开工（有意为之，见商业计划书）。
 
 ---
 
 
-## 12. 真机作为最终裁判：四处被单测掩盖的偏差
+## 12. 真机作为最终裁判：五处被单测掩盖的偏差
 
 第一次把插件装进真实宿主跑通之后，暴露了四个单测没有任何办法发现的问题。
 本节留档不是为了追责，而是因为**同一个错误模式还会再犯**：用自己假设的契约写测试，
@@ -328,6 +330,22 @@ token 只是 `measures` 里的一种单位。计划中的第二个来源（Trae 
 **12.4 同一块面板两套时间口径。**
 页脚用 UTC 的 ISO（`07:35`），明细行用本地时间戳（`15:35`）。差 8 小时，用户只会以为数据错。
 新增 `formatLocalTime()`，一律本地时区——**同一个面板里只能有一套时间口径**。
+
+**12.5 客户端入口不能是 ESM 源码。** 0.1.4 把 `lib/client.js` 作为未打包的 ESM 发布（`import` / `export` 俱在）。
+宿主把每个包的 client 入口**原样拼接**进一个 classic script，浏览器在第一句 `import` 处抛
+`SyntaxError: Cannot use import statement outside a module`；`dsh-client-modules` 把它升级为致命错误，
+Desktop 宿主启动阶段直接停住（用户看到"以安全模式重启"）。
+
+这个错误单测完全看不出来：`test/client.test.mjs` 用 `import` 直接加载源码，全绿；而宿主从不 `import` 它，
+只是把文本拼进 `<script>`。**测试加载方式与实际加载方式不同，等于没测。**
+
+修法是把发布物变成宿主契约要求的 loader 形态，并让构建成为发布前不可跳过的一步：
+
+- `lib/client.src.js`（源码，单测/脚本用）→ `scripts/build-client.mjs` → `lib/client.js`（产物，零 import/export）；
+- `id` 取安装后的包名（转发包要按自己的包名重建，见 `scripts/build-bundle.mjs`）；
+- React 只经 factory 的 `require("react")`；
+- `test/client-bundle.test.mjs` 在 `node:vm` 里用假 `window.__ModuleLoader__` 加载产物，断言形态；
+- `scripts/ci.sh` 校验产物与源同步（重建后 `git diff` 必须为空）。
 
 ### 工程侧的一条硬约束
 

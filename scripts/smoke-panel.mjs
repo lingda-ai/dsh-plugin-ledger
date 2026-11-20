@@ -14,7 +14,7 @@ import { mkdtempSync, mkdirSync, readdirSync, readFileSync, statSync, rmSync, wr
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { apply as applyHost } from '../lib/index.js'
-import { createFetchView } from '../lib/client.js'
+import { createFetchView } from '../lib/client.src.js'
 import { panelRelativePath } from '../lib/panel-path.js'
 
 let failed = 0

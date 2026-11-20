@@ -3,7 +3,7 @@ import { writeFileSync } from 'node:fs'
 const require = createRequire('/home/user/lingzhi/package.json')
 const React = require('react')
 const { renderToStaticMarkup } = require('react-dom/server')
-const { __internal } = await import('../lib/client.js')
+const { __internal } = await import('../lib/client.src.js')
 
 import { createPricing } from '../lib/pricing.js'
 import { BUILTIN_RATES } from '../lib/pricing-table.js'

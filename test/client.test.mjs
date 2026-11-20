@@ -7,7 +7,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { apply, createFetchView, __internal } from '../lib/client.js'
+import { apply, createFetchView, __internal } from '../lib/client.src.js'
 
 function fakeCtx({ withSlots = false } = {}) {
   const log = []
