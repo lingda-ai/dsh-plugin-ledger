@@ -241,6 +241,34 @@ pricing:
       output: 1.2e-6   # 元/token；等价于 1.2 元/百万
 ```
 
+## 官方调价了怎么办：`pricing.json`
+
+内置表是 2026-11-19 的价。官方一调价，你不需要改代码、也不需要等新版本：
+
+```bash
+# 写一份覆盖文件（不存在就纯用内置价）
+mkdir -p ~/.dsh/ledger
+cat > ~/.dsh/ledger/pricing.json <<'JSON'
+{
+  "asOf": "2026-12-01",
+  "source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing",
+  "rates": {
+    "deepseek-v4-flash": { "input": 1.2, "output": 2.4, "cacheRead": 0.03, "cacheWrite": 0 }
+  }
+}
+JSON
+```
+
+- **单位是元 / 百万 tokens**（和官方公告一致，不用自己换算成 1e-6）。
+- **四档必须齐**（`input` / `output` / `cacheRead` / `cacheWrite`）。
+- **整条生效或整条拒绝**，不逐档合并：四档共同定义一个模型的价格语义，缺一档就拿旧价补新价，
+  算出来的数字既不是旧价也不是新价。宁可不认（显示 `—`），也不给一个看着像真的假数。
+- 只覆盖你写到的模型，其余继续用内置价。
+- 改完**重启会话**生效（boot 时读一次，计价热路径不做 IO）。
+
+写错了不会静默回退：面板顶部会出现一条琥珀色警示说明"没生效、金额仍按内置价计算"，
+`ledger_query` 带 `op: "rates"` 可以查当前生效表、来源日期、以及哪个模型因为什么被忽略。
+
 ## 面板预览（代码的真实输出）
 
 ```bash
