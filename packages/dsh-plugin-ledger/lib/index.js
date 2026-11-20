@@ -173,7 +173,14 @@ export function apply(ctx, rawConfig) {
     if (typeof sid === 'string' && !sessionRoots.has(sid) && typeof session?.header?.cwd === 'string') {
       sessionRoots.set(sid, session.header.cwd)
     }
-    if (event?.type === 'session/title' && typeof sid === 'string') {
+    if (typeof sid === 'string' && !titles.has(sid)) {
+      // 两条来源都试：标题事件（新会话）、会话对象上的现成标题（老会话，插件启动前就有标题的）
+      const fromEvent = event?.type === 'session/title' ? (event?.data ?? event)?.title : null
+      const fromSession = session?.title ?? session?.header?.title
+      const title = typeof fromEvent === 'string' && fromEvent.length > 0 ? fromEvent : fromSession
+      if (typeof title === 'string' && title.length > 0) titles.set(sid, title)
+    } else if (event?.type === 'session/title' && typeof sid === 'string') {
+      // 标题会被重新生成（例如更好的一条），已存在时也要更新
       const payload = event?.data ?? event
       if (typeof payload?.title === 'string' && payload.title.length > 0) titles.set(sid, payload.title)
     }
