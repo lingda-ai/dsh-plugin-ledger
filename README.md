@@ -343,6 +343,18 @@ node scripts/verify-real-host.mjs --cwd /path/to/dsh-root   # 只跑真机那一
 
 模型是固定文本、token 是脚本给的固定值，所以它是**链路证据**，不是效果证据。
 
+## 发布
+
+包已配好可发布字段（无 `private`、`publishConfig.access: public`、`files` 白名单）。
+发布前先在 npm 上确认 scope 归属：
+
+```bash
+pnpm publish --access public      # 用 pnpm，不用 npm（本环境 npm pack 会崩）
+```
+
+发布包里**只有** `lib/`、`cordis.patch.yml`、`README.md`、`LICENSE` 和两份技术文档；
+`docs/business-plan.md` 属内部材料，不进包。`prepublishOnly` 会先跑一遍单测，测不过发不出去。
+
 ## 安装（DSH 侧外部插件）
 
 ```bash
