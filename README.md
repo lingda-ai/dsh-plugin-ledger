@@ -331,6 +331,17 @@ git clone https://gitee.com/linzhengtong/dsh-plugin-ledger.git
 dsh plugin add @lingda/ledger
 ```
 
+> **用 `file:` 装开发版时有个坑（我们踩过）**：pnpm 把文件**硬链接**进 profile ——
+> 改已有文件的内容会即时生效（同 inode），但**新增文件不会被同步**（目录结构是复制的）。
+> 所以往里加了新模块之后，必须重装才能看到它：
+>
+> ```bash
+> rm -rf ~/.dsh/profiles/<name>/node_modules/@lingda
+> dsh plugin --profile <name> add file:/path/to/dsh-plugin-ledger
+> ```
+>
+> 症状很好认：宿主启动时告警 `lingda-ledger (@lingda/ledger): failed to import`。
+
 ```jsonc
 // workspace 配置：面板默认关，需要显式打开（写盘是外部副作用，不该由观测默认产生）
 {
