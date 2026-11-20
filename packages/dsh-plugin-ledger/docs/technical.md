@@ -246,7 +246,7 @@ token 只是 `measures` 里的一种单位。计划中的第二个来源（Trae 
 
 | 手段 | 覆盖 | 产出 |
 |---|---|---|
-| `node --test test/*.test.mjs` | 188 例断言 | 计价、归因、预算回滞、幂等、身份、卸载残留、面板 SSR、客户端产物形态 |
+| `node --test test/*.test.mjs` | 191 例断言 | 计价、归因、预算回滞、幂等、身份、卸载残留、面板 SSR、客户端产物形态 |
 | `node scripts/build-client.mjs` | 产物形态 | 从源码重建 `lib/client.js`（零 import/export 的 loader 包） |
 | `scripts/bench.mjs --gate` | 热路径 + 内存 | 上表数字 |
 | `scripts/smoke-registry.mjs` | 插件装配契约 | 假 ctx 下工具注册/提供不抛 |
@@ -346,6 +346,25 @@ Desktop 宿主启动阶段直接停住（用户看到"以安全模式重启"）�
 - React 只经 factory 的 `require("react")`；
 - `test/client-bundle.test.mjs` 在 `node:vm` 里用假 `window.__ModuleLoader__` 加载产物，断言形态；
 - `scripts/ci.sh` 校验产物与源同步（重建后 `git diff` 必须为空）。
+
+**12.6 客户端插件必须导出 `inject`，而且它和 `dsh.client.inject` 不是一回事。**
+修完 12.5 之后再重启，宿主换了个死法：`cannot get property "sidebarRightTabs" without inject`。
+
+原因：cordis 的 `ctx` 是代理，**访问未声明依赖的服务属性会当场抛错**（不是返回 undefined），
+而这个抛错发生在 `apply()` 里，等于让宿主启动失败。`package.json` 的 `dsh.client.inject` 说的是
+"先加载哪几个客户端包"，`exports.inject` 说的是"这个插件依赖哪些服务"——前者写对了并不能免掉后者。
+
+正确写法（对齐 `dsh-bloub-mood` / `dsh-client-ui-skill-explorer` 的产物）：
+
+```js
+exports.inject = ['sidebarRightTabs']        // 硬依赖，缺了就别 apply
+ctx.get('slots')                             // 可选服务：不受 inject 约束的通道
+```
+
+教训与 12.5 同源：**客户端半边的契约没有一条经过真机验证，而每一条的失败方式都是"宿主起不来"。**
+所以本轮把 apply 里所有未证实契约（tab 登记、close handler、seat 挂载、卸载）都包了 try/catch，
+默认姿态是"退化成一个没有面板的插件"，而不是"把宿主带走"；同时新增反证测试：
+把 `inject` 去掉，`apply` 必须抛 `without inject`——这条测试的存在意义就是让这个错在单测里炸。
 
 ### 工程侧的一条硬约束
 

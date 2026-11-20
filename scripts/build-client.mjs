@@ -82,6 +82,9 @@ ${body}
     __setReactLoader(() => require("react"));
 
     exports.apply = apply;
+    // 硬依赖必须跟着产物一起导出：cordis 靠它判断"什么时候允许 apply"，
+    // 漏了就会在 apply 里抛 cannot get property "..." without inject，把宿主启动带崩。
+    exports.inject = inject;
     return module.exports;
   },
 });

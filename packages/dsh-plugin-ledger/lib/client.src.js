@@ -43,6 +43,38 @@ const LEDGER_ID = '@lingda-ai/ledger'
 /** tab 类型判别串，`openTab('ledger.cost', …)` 用的就是它。 */
 const LEDGER_KIND = 'ledger.cost'
 
+/**
+ * 硬依赖：没有右栏 tab 服务，这个插件什么都不用做。
+ *
+ * 这条**必须声明**。cordis 的 ctx 是代理：访问未声明的服务属性会直接抛
+ * `cannot get property "sidebarRightTabs" without inject`，而且是在 apply 里抛，
+ * 等同于让宿主启动失败（0.1.5 重启即崩就是这么来的——之前只写了 package.json 的
+ * dsh.client.inject，那是"先加载哪个包"，不是"这个插件依赖哪个服务"，两回事）。
+ */
+export const inject = ['sidebarRightTabs']
+
+/**
+ * 取可选服务。不能写成 `ctx.xxx`——没在 inject 里声明的服务，属性访问会抛。
+ * 宿主提供了 `ctx.get(name)` 这条不受 inject 约束的通道；Node 侧单测的假 ctx
+ * 没有 get，退回普通属性读。
+ * @param {any} ctx
+ * @param {string} name
+ */
+function optionalService(ctx, name) {
+  if (typeof ctx?.get === 'function') {
+    try {
+      return ctx.get(name) ?? null
+    } catch {
+      return null
+    }
+  }
+  try {
+    return ctx?.[name] ?? null
+  } catch {
+    return null
+  }
+}
+
 /** 面板用到的 seat 名，抽出来避免字符串散落。 */
 const SEAT_BODY = 'sidebar.right.pane.tab'
 const SEAT_TITLE = 'sidebar.right.pane.tab.title'
@@ -102,7 +134,7 @@ import {
 export function createFetchView(ctx) {
   return async function fetchView(sessionId, opts = {}) {
     if (typeof sessionId !== 'string' || sessionId.length === 0) return null
-    const files = ctx?.remote?.workspaceFiles
+    const files = optionalService(ctx, 'remote')?.workspaceFiles
     if (!files || typeof files.stat !== 'function' || typeof files.read !== 'function') {
       return { error: '宿主未提供 workspaceFiles 通道' }
     }
@@ -193,16 +225,30 @@ export async function apply(ctx) {
     keepMounted: true,
   }
 
-  const disposeTab = tabs.register(definition)
-  const disposeClose =
-    typeof ctx.sidebarRight?.registerCloseHandler === 'function'
-      ? ctx.sidebarRight.registerCloseHandler(LEDGER_KIND, () => {})
-      : null
+  // 客户端契约里除 sidebarRightTabs 之外的部分都没被真机证实过。
+  // 这是一个 UI 插件：任何一处契约偏差都应该退化成"没有面板"，而不是让宿主起不来。
+  let disposeTab = null
+  try {
+    disposeTab = tabs.register(definition)
+  } catch (error) {
+    console.warn('[ledger] 右栏 tab 登记失败，面板不出现（宿主其它功能不受影响）:', error)
+    return
+  }
+
+  const sidebarRight = optionalService(ctx, 'sidebarRight')
+  let disposeClose = null
+  if (typeof sidebarRight?.registerCloseHandler === 'function') {
+    try {
+      disposeClose = sidebarRight.registerCloseHandler(LEDGER_KIND, () => {})
+    } catch (error) {
+      console.warn('[ledger] registerCloseHandler 失败:', error)
+    }
+  }
 
   // 正文与标题：宿主把 seat 声明在 sidebar-right 里，先 inject 再 register
   let disposeBody = null
   let disposeTitle = null
-  const slots = ctx.slots
+  const slots = optionalService(ctx, 'slots')
   if (typeof slots?.inject === 'function' && typeof slots.register === 'function') {
     let React = null
     try {
@@ -211,21 +257,29 @@ export async function apply(ctx) {
       React = null // 宿主没给 React：保持无正文的降级态
     }
     if (React !== null) {
-      const fetchView = createFetchView(ctx)
-      disposeBody = slots.inject(SEAT_BODY, () =>
-        slots.register({ name: SEAT_BODY, key: LEDGER_ID }, makeLedgerBody(React, fetchView)),
-      )
-      disposeTitle = slots.inject(SEAT_TITLE, () =>
-        slots.register({ name: SEAT_TITLE, key: LEDGER_ID }, makeLedgerTitle(React)),
-      )
+      try {
+        const fetchView = createFetchView(ctx)
+        disposeBody = slots.inject(SEAT_BODY, () =>
+          slots.register({ name: SEAT_BODY, key: LEDGER_ID }, makeLedgerBody(React, fetchView)),
+        )
+        disposeTitle = slots.inject(SEAT_TITLE, () =>
+          slots.register({ name: SEAT_TITLE, key: LEDGER_ID }, makeLedgerTitle(React)),
+        )
+      } catch (error) {
+        // seat 名对不上、权限不足、host 版本差异：只丢面板正文，tab 仍在
+        console.warn('[ledger] 面板正文挂载失败（只剩 tab 标题）:', error)
+      }
     }
   }
 
   const cleanup = () => {
-    disposeTitle?.()
-    disposeBody?.()
-    disposeClose?.()
-    disposeTab()
+    for (const dispose of [disposeTitle, disposeBody, disposeClose, disposeTab]) {
+      try {
+        dispose?.()
+      } catch {
+        // 卸载阶段的异常同样不能冒泡
+      }
+    }
   }
   if (typeof ctx.effect === 'function') ctx.effect(() => cleanup)
   else ctx.on('dispose', cleanup)

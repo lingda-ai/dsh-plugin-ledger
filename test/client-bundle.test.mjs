@@ -45,6 +45,30 @@ function instantiate(source, { react = { createElement: () => null } } = {}) {
   return { registration, exported, requested }
 }
 
+/**
+ * 模拟 cordis 的 ctx 代理：访问未在 inject 里声明的服务会抛
+ * `cannot get property "X" without inject`。
+ *
+ * 这条不是为了测代理本身，而是为了让"少写 inject"这个错在单测里就炸——
+ * 真机上它表现为宿主启动失败（不能再靠真机重启才发现）。
+ */
+function cordisLikeCtx(declared, services) {
+  const base = {
+    get(name) {
+      return services[name] ?? null
+    },
+    effect() {},
+  }
+  return new Proxy(base, {
+    get(target, prop) {
+      if (prop in target) return target[prop]
+      if (typeof prop === 'symbol' || String(prop).startsWith('_')) return target[prop]
+      if (declared.includes(prop)) return services[prop]
+      throw new Error(`cannot get property "${String(prop)}" without inject`)
+    },
+  })
+}
+
 /** 最小的假 ctx：只提供 apply 会碰到的服务。 */
 function fakeCtx({ registered = [], slots = [] } = {}) {
   return {
@@ -115,4 +139,42 @@ test('apply 在假 ctx 上登记右栏 tab（端到端形状）', async () => {
   assert.equal(registered.length, 1)
   assert.equal(registered[0].kind, 'ledger.cost')
   assert.equal(registered[0].title(), '账本')
+})
+
+test('产物导出了 inject，且包含 sidebarRightTabs（少了会炸宿主启动）', async () => {
+  const { source } = await loadArtifact()
+  const { exported } = instantiate(source)
+  assert.ok(Array.isArray(exported.inject), 'exports.inject 必须是数组')
+  assert.ok(
+    exported.inject.includes('sidebarRightTabs'),
+    '必须声明 sidebarRightTabs：否则 apply 里读 ctx.sidebarRightTabs 会抛 without inject',
+  )
+})
+
+test('在真 cordis 语义下 apply 不抛错（未声明服务一律走 ctx.get 可选通道）', async () => {
+  const { source } = await loadArtifact()
+  const { exported } = instantiate(source)
+  const registered = []
+  const services = {
+    sidebarRightTabs: {
+      register(definition) {
+        registered.push(definition)
+        return () => {}
+      },
+    },
+    // 故意不提供 sidebarRight / slots / remote：可选服务缺了也只能降级，不能崩
+  }
+  await exported.apply(cordisLikeCtx(exported.inject, services))
+  assert.equal(registered.length, 1, '即使可选服务全缺，也该登记右栏 tab 类型')
+  assert.equal(registered[0].kind, 'ledger.cost')
+})
+
+test('反证：inject 里漏掉 sidebarRightTabs 时，真实语义会抛错（这就是 0.1.5 崩的原因）', async () => {
+  const { source } = await loadArtifact()
+  const { exported } = instantiate(source)
+  const services = { sidebarRightTabs: { register: () => () => {} } }
+  await assert.rejects(
+    () => exported.apply(cordisLikeCtx([], services)),
+    /without inject/,
+  )
 })
