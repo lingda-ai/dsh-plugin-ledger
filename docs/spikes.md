@@ -284,7 +284,7 @@ ctx.slots.inject('sidebar.right.pane.tab', () =>
   ctx.slots.register({ name: 'sidebar.right.pane.tab', key: '<type.id>' }, Component))
 ```
 
-- keyed seat 必须带 `key`，值等于 tab 类型的 `id`（本包为 `@lingda/ledger`）。
+- keyed seat 必须带 `key`，值等于 tab 类型的 `id`（本包为 `@lingdaai/ledger`）。
 - `inject(seat, factory)` 是"声明就绪后再注册"的入口：seat 由 sidebar-right 声明，
   直接 `register` 有未声明风险。
 - 标题 seat `sidebar.right.pane.tab.title` 同形态，组件返回 chip 文本。

@@ -1,4 +1,4 @@
-# 账本（@lingda/ledger）技术文档
+# 账本（@lingdaai/ledger）技术文档
 
 > 版本 0.1.0 · 代码仓 `gitee.com/linzhengtong/dsh-plugin-ledger` · 协议见 `docs/wire-format.md`
 > 本文只写**为什么这么设计**和**数字怎么来的**，不写安装步骤（见 README）。

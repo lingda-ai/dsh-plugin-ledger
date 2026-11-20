@@ -1,5 +1,5 @@
-# @lingda/ledger —— 运行时账本（旁路观测 + 决策注入）
+# @lingdaai/ledger —— 运行时账本（旁路观测 + 决策注入）
 # 生态发布名：dsh-plugin-ledger
 - insert:
     - id: lingda-ledger
-      name: "@lingda/ledger"
+      name: "@lingdaai/ledger"
