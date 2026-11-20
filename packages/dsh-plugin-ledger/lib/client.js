@@ -143,6 +143,34 @@ window.__ModuleLoader__.load({
     
     /** 面板自动刷新间隔：Host 落盘节流 3s，这里 5s，够快又不空转。 */
     const REFRESH_MS = 5000
+    /** 单次读取的超时：超过它就必须报错，而不是让面板一直转圈。 */
+    const READ_TIMEOUT_MS = 8000
+    
+    /**
+     * 给一次远端读取加超时。
+     *
+     * RPC 卡住时 Promise 永远不 settle，界面就会停在"正在读取…"——用户既看不出坏在哪，
+     * 也没有重试的余地。宁可报"读取超时"，也不要无声地转圈。
+     * @template T
+     * @param {Promise<T>} promise
+     * @param {number} ms
+     * @returns {Promise<T>}
+     */
+    function withTimeout(promise, ms) {
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`读取超时（${ms}ms）`)), ms)
+        promise.then(
+          (value) => {
+            clearTimeout(timer)
+            resolve(value)
+          },
+          (error) => {
+            clearTimeout(timer)
+            reject(error)
+          },
+        )
+      })
+    }
     
     // 老快照（没有 pricing 字段）的兜底文案。新快照一律由 pricingNoteOf 生成，
     // 因为"内置还是自定义、哪天的价、有没有被忽略的模型"只能从数据里读，不能写死。
@@ -320,37 +348,66 @@ window.__ModuleLoader__.load({
       return typeof share === 'number' && Number.isFinite(share) ? `${(share * 100).toFixed(1)}%` : '—'
     }
     
+    /**
+     * 最近一次成功读取的快照，按会话索引。
+     *
+     * 为什么放在模块级而不是组件 state：右栏 tab 是 keepMounted 的常驻 UI，
+     * 宿主在切会话/重挂时会重建组件；state 一丢就又回到"正在读取…"。
+     * 有了这份缓存，第二次打开是**立刻有数**，轮询只负责刷新。
+     * @type {Map<string, object>}
+     */
+    const viewCache = new Map()
+    
     function makeLedgerBody(React, fetchView) {
       const h = React.createElement
     
       return function LedgerBody(props) {
         const sessionId = typeof props?.sessionId === 'string' ? props.sessionId : null
-        const [view, setView] = React.useState(undefined)
+        const [view, setView] = React.useState(() => (sessionId === null ? undefined : viewCache.get(sessionId)))
         const [busy, setBusy] = React.useState(false)
         const [expanded, setExpanded] = React.useState(false)
-        // 请求序号：切会话时旧请求可能后到，不能让它把新会话的读数覆盖掉
-        const seq = React.useRef(0)
+        // 正在飞的那一次请求：轮询必须跳过"上一拍还没回来"的这一次。
+        // 否则每 REFRESH_MS 就有一个新请求把上一个响应判定为过期，
+        // 只要单次读取慢于轮询间隔，面板就会**永远停在"正在读取…"**（真机上就是这个现象）。
+        const inFlight = React.useRef(false)
+        // 当前挂着的会话：响应回来时用它判断"是不是还在看同一个会话"
+        const liveSession = React.useRef(sessionId)
+        /** 挂载时刻：用来判断"这次读取是不是慢得反常" */
+        const mountedAt = React.useRef(Date.now())
     
         const refresh = React.useCallback(async () => {
           if (sessionId === null) return
-          const mine = (seq.current += 1)
+          if (inFlight.current) return
+          inFlight.current = true
+          const forSession = sessionId
+          const startedAt = Date.now()
           setBusy(true)
           try {
-            const next = await fetchView(sessionId)
-            if (mine === seq.current) setView(next)
+            const next = await withTimeout(fetchView(forSession), READ_TIMEOUT_MS)
+            if (next !== null && next?.error === undefined) viewCache.set(forSession, next)
+            if (liveSession.current === forSession) setView(next)
+          } catch (error) {
+            // 任何异常都要落成可见的错误态。永久 loading 是最糟的失败方式：
+            // 用户既不知道坏在哪，也不知道能不能重试。
+            console.warn('[ledger] 读取账本快照失败:', error)
+            if (liveSession.current === forSession) {
+              setView({ error: `${error?.message ?? error}（耗时 ${Date.now() - startedAt}ms）` })
+            }
           } finally {
-            if (mine === seq.current) setBusy(false)
+            inFlight.current = false
+            if (liveSession.current === forSession) setBusy(false)
           }
         }, [sessionId])
     
         React.useEffect(() => {
+          liveSession.current = sessionId
           // 切会话先清空：宁可闪一帧"正在读取"，也不能让 B 会话标题下挂着 A 会话的金额
           setView(undefined)
           void refresh()
           // 成本是持续读数，不是一张照片：挂载后自动刷新（Host 侧 3 秒落盘节流）
           const timer = setInterval(() => { void refresh() }, REFRESH_MS)
           return () => clearInterval(timer)
-        }, [refresh])
+        }, [refresh, sessionId])
     
         const head = h(
           'div',
@@ -386,9 +443,24 @@ window.__ModuleLoader__.load({
           ),
         )
     
-        // loading：还没跑完第一次
+        // loading：还没跑完第一次。超过 1.5 秒就把"读得慢"显出来，
+        // 永久转圈是最没法排查的失败方式（既没有错误码，也没有重试入口）
         if (view === undefined) {
-          return h('div', null, head, h('p', { style: { margin: '12px 14px', fontSize: 12, color: INK3 } }, '正在读取…'))
+          const slow = Date.now() - mountedAt.current > 1500
+          return h(
+            'div',
+            null,
+            head,
+            h('p', { style: { margin: '12px 14px', fontSize: 12, color: INK3 } }, slow ? '正在读取…（比预期慢）' : '正在读取…'),
+            slow
+              ? h(
+                  'p',
+                  { style: { margin: '0 14px 12px', fontSize: 11, lineHeight: 1.7, color: INK3 } },
+                  `已等待 ${Math.round((Date.now() - mountedAt.current) / 1000)} 秒 · 点「刷新」可重试。`
+                  + '若一直如此，多半是快照文件还没落盘（Host 每 3 秒最多写一次）。',
+                )
+              : null,
+          )
         }
     
         // 通道或解析出错
