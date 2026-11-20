@@ -44,6 +44,8 @@ const COMPACTION_PREFIX = 'compaction/'
 export function createLedger({ store, pricing, attribution, trace, onEntry, cwdOf, identity, now = () => Date.now() }) {
   let failures = 0
   let handled = 0
+  /** 无 usage 的模型事件数（assistant/attempt 之类）。它们是"尝试"，不是计费调用。 */
+  let skipped = 0
 
   /**
    * 唯一入账出口。`onEntry` 是给 Budget Guard 的正式钩子，
@@ -91,6 +93,15 @@ export function createLedger({ store, pricing, attribution, trace, onEntry, cwdO
     const step = event.step ?? 0
 
     const usage = normalizeUsage(event.usage ?? event.message?.usage)
+    // 没有 usage 的模型事件（assistant/attempt）不是计费调用，**不能入账**：
+    //   - 它会变成一条 unknown(no-usage)，而 guard 见到 unknownEntries > 0 就整条放弃预算，
+    //     于是"预算降级"静默失效，面板还会误报"合计偏低"（实测注入 0 条预算事实）；
+    //   - 它也没有任何金额可记，记了只会在明细里多一行"未知"噪音。
+    // 计数留在 stats.skipped 里，仍然可观测。
+    if (usage === null) {
+      skipped += 1
+      return
+    }
     const route = routeOf(event)
     const cost = pricing.costOf(usage, route)
 
@@ -255,6 +266,6 @@ export function createLedger({ store, pricing, attribution, trace, onEntry, cwdO
       pendingCompaction.delete(sessionId)
       identityBySession.delete(sessionId)
     },
-    stats: () => ({ handled, failures }),
+    stats: () => ({ handled, failures, skipped }),
   }
 }

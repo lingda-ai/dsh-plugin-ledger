@@ -63,8 +63,12 @@ test('副标题用「次调用」，不会在金额旁边被读成元', () => {
   assert.equal(/9 条/.test(out), false, '「9 条」紧挨金额会被读成 9 元')
 })
 
-test('全部未归因时，副标题点明可操作的原因（来源未配置）', () => {
-  assert.match(flat(view()), /来源未配置/)
+test('全部未归因时，副标题说「归因无信号」而不是甩锅给配置', () => {
+  // unattributed 桶同时收 no-signal（本会话没调工具）与 no-origin（工具没登记 owner），
+  // 写「来源未配置」会把纯聊天会话指去改一个不存在的配置
+  const out = flat(view())
+  assert.match(out, /归因无信号/)
+  assert.equal(out.includes('来源未配置'), false)
 })
 
 test('部分未归因时给次数，不吞掉这条信息', () => {
@@ -147,4 +151,29 @@ test('工具结果体量用「工具结果」而不是无解释的箭头', () =>
 
 test('页脚用「快照 HH:MM:SS」而不是「快照生成于」', () => {
   assert.match(flat(view()), /快照 2026-11-20 /)
+})
+
+test('预算缺席时给一行配置提示，而不是整段静默消失', () => {
+  const out = flat(view())
+  assert.match(out, /未设预算/)
+  assert.match(out, /budget\.limit/)
+})
+
+test('最贵一步带轮次与占比（只说"最贵"会让人去优化一个 11% 的峰值）', () => {
+  const out = flat(view())
+  assert.match(out, /最贵 T7·S6 ¥0\.0069 · 占 14\.4%/)
+})
+
+test('命中一档占大头时，给一句"钱花在哪"的结论', () => {
+  const v = view()
+  v.totals.cost.parts = { input: 0.002, output: 0.008, cacheRead: 0.0379, cacheWrite: 0 }
+  const out = flat(v)
+  assert.match(out, /钱主要花在重复送出的上下文/)
+  assert.match(out, /命中一档 ¥0\.0379/)
+})
+
+test('命中一档不占大头时不硬凑结论', () => {
+  const v = view()
+  v.totals.cost.parts = { input: 0.03, output: 0.016, cacheRead: 0.0019, cacheWrite: 0 }
+  assert.equal(flat(v).includes('钱主要花在重复送出的上下文'), false)
 })

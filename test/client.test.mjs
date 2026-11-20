@@ -309,14 +309,14 @@ test('数据态：合计、四档金额、来源、明细、预算都画出来',
   assert.match(html, /其他会话/)
   assert.match(html, /sessio…def/)          // session-def 截断显示
   assert.match(html, /内置官方价估算/)      // 金额按什么价算的，要写在面板上
-  assert.match(html, /最贵一步 ¥0.0017/)   // 治理时要能一眼看到哪一问最贵
+  assert.match(html, /最贵 T2·S2 ¥0\.0017/)   // 治理时要能一眼看到哪一问最贵
   assert.match(html, /T2·S2/)             // 明细带轮次，时间定位不了问题
   assert.match(html, /其中 1 条费率未知，合计偏低/)  // 有未知费率时合计只是下限
   assert.match(html, /占输入 63%/)         // 命中率：输入里有多少走了缓存
   assert.match(html, /还可约 5 次/)        // 比"已用 51%"更可行动
   assert.match(html, /工具结果 18\.4k 字符/)  // 工具结果体量：解释"这一步为什么贵"
   assert.match(html, /压缩前 42\.0k/)      // 压缩：前值，让人看到压缩前多大
-  assert.match(html, /缓存命中已省 ¥0\.0051/)  // 商业化上最有力的一行：省了多少
+  assert.match(html, /缓存已省 ¥0\.0051/)  // 商业化上最有力的一行：省了多少
   assert.match(html, /少花 25\.0%/)             // 省下的占比，比绝对值更有感知
 })
 

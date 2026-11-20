@@ -10,6 +10,17 @@ git diff --quiet -- lib/client.js || {
   exit 1
 }
 
+echo "== 转发包与主包一致（client.js 除外：它要按各自包名重新生成）=="
+drift=0
+for f in lib/*.js; do
+  case "$(basename "$f")" in client.js) continue ;; esac
+  if ! diff -q "$f" "packages/dsh-plugin-ledger/$f" >/dev/null 2>&1; then
+    echo "FAIL  $f 与 packages/dsh-plugin-ledger/$f 不一致：跑 node scripts/build-bundle.mjs <版本>" >&2
+    drift=1
+  fi
+done
+[ "$drift" -eq 0 ] || exit 1
+
 echo "== 单元测试 =="
 node --test test/*.test.mjs
 

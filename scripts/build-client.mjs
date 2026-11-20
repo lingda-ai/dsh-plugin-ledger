@@ -85,6 +85,8 @@ ${body}
     // 硬依赖必须跟着产物一起导出：cordis 靠它判断"什么时候允许 apply"，
     // 漏了就会在 apply 里抛 cannot get property "..." without inject，把宿主启动带崩。
     exports.inject = inject;
+    // 纯函数面：只给测试与诊断用（renderPayload 等），不参与宿主运行
+    exports.__internal = __internal;
     return module.exports;
   },
 });

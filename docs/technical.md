@@ -261,7 +261,7 @@ token 只是 `measures` 里的一种单位。计划中的第二个来源（Trae 
 
 | 手段 | 覆盖 | 产出 |
 |---|---|---|
-| `node --test test/*.test.mjs` | 206 例断言 | 计价、归因、预算回滞、幂等、身份、卸载残留、面板 SSR、客户端产物形态 |
+| `node --test test/*.test.mjs` | 225 例断言 | 计价、归因、预算回滞、幂等、身份、卸载残留、面板 SSR、客户端产物形态 |
 | `node scripts/build-client.mjs` | 产物形态 | 从源码重建 `lib/client.js`（零 import/export 的 loader 包） |
 | `scripts/bench.mjs --gate` | 热路径 + 内存 | 上表数字 |
 | `scripts/smoke-registry.mjs` | 插件装配契约 | 假 ctx 下工具注册/提供不抛 |
@@ -270,6 +270,9 @@ token 只是 `measures` 里的一种单位。计划中的第二个来源（Trae 
 | `scripts/render-panel.mjs` | 视觉（单状态） | 真实 `renderPayload()` 输出，三列宽度 |
 | `scripts/render-states.mjs` | 视觉（状态矩阵） | 7 个状态并排：常规/空态/费率未知/费率被拒/展开/预算/300px |
 | `test/client-lifecycle.test.mjs` | 客户端生命周期 | 登记可逆、重复 apply、无 slots 降级、登记抛错不冒泡 |
+| `test/snapshot-roundtrip.test.mjs` | 写盘→读回全链路 | 20 条明细（400+ 行）分页读回、truncated 落盘、二级降级不超 maxBytes |
+| `test/guard-downgrade.test.mjs` | 预算降级矩阵 | provider/model/maxTokens 覆盖、阈值、未知成本不判、next 抛错冒泡 |
+| `test/client-artifact-render.test.mjs` | 产物渲染 | 用 `lib/client.js` + 真 React 渲染有数据态与组件首帧（抓出过重名常量导致的 SyntaxError） |
 
 **SKIP 不等于通过**：冒烟脚本找不到 DSH 运行时用退出码 2 表示 SKIP，`prepublish.sh` 第 6 步把 SKIP 判 FAIL。
 这条是为了避免"换台机器 CI 照样全绿，但契约一条没验"。
@@ -382,6 +385,22 @@ ctx.get('slots')                             // 可选服务：不受 inject 约
 所以本轮把 apply 里所有未证实契约（tab 登记、close handler、seat 挂载、卸载）都包了 try/catch，
 默认姿态是"退化成一个没有面板的插件"，而不是"把宿主带走"；同时新增反证测试：
 把 `inject` 去掉，`apply` 必须抛 `without inject`——这条测试的存在意义就是让这个错在单测里炸。
+
+**12.7 三条跨模块契约，从来没被同一条测试同时握住两端。**
+
+一次针对性审计（自动化测试视角）挖出三个**当前代码的真实故障**，都不是理论风险：
+
+| 故障 | 为什么单测全绿 |
+|---|---|
+| 面板读回：Host 写的是多行 JSON，`workspaceFiles.read` 是**按行分页**的（一页最多 400 行），而浏览器半只读一页还要求 `eof`。一份 20 条明细的快照有 461~587 行 → 任何稍成熟的会话打开面板都是「读取失败」 | Host 侧测 payload 对象（没写盘），浏览器侧测 mock 远程（没真文件），谁都没测真实尺寸 |
+| `truncated` 不落盘：它只是 `buildPanelPayload` 的返回值，payload 里没有这个字段，面板的"明细已截断"提示是死代码 | 单测断言的是返回值 `r.truncated`，正好把落盘那一步遮住 |
+| `assistant/attempt` 污染预算：该事件无 usage，记成 `unknown(no-usage)` 后 `guard.spentOf` 见到 `unknownEntries > 0` 就整条放弃预算，降级静默失效 | 全套用例里根本没构造过 attempt 事件 |
+
+修法都不是加判断，而是**把两端放进同一条测试**：`snapshot-roundtrip.test.mjs` 用真 store + 真 publisher + 真文件 + 按行分页的假 remote；
+`client-artifact-render.test.mjs` 用发布产物 + 真 React 渲染（它当场抓出一个重名常量导致的 SyntaxError——
+四个模块打包进同一作用域，`REFRESH_MS` 重复声明，源码测试全绿、产物必然崩）。
+
+一句话：**可以骗过单测的，永远是"我以为另一端是这样的"。**
 
 ### 工程侧的一条硬约束
 
