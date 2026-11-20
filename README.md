@@ -1,4 +1,4 @@
-# @lingdaai/ledger
+# @lingda-ai/ledger
 
 DSH 右侧栏的**会话成本仪表**（生态发布名 `dsh-plugin-ledger`，中文名「账本」）。
 
@@ -190,7 +190,7 @@ dsh --profile <已有profile> --patch <仓库>/mount/ledger-dev.overlay.yml
 
 ```yaml
 - id: lingda-ledger
-  name: '@lingdaai/ledger'
+  name: '@lingda-ai/ledger'
   config:
     panel:
       enabled: true          # 默认关闭：写盘是外部副作用
@@ -362,7 +362,7 @@ pnpm publish --access public      # 用 pnpm，不用 npm（本环境 npm pack �
 git clone https://gitee.com/linzhengtong/dsh-plugin-ledger.git
 
 # npm 尚未发布（见"已知限制"），发布后这一行才可用
-dsh plugin add @lingdaai/ledger
+dsh plugin add @lingda-ai/ledger
 ```
 
 > **用 `file:` 装开发版时有个坑（我们踩过）**：pnpm 把文件**硬链接**进 profile ——
@@ -374,7 +374,7 @@ dsh plugin add @lingdaai/ledger
 > dsh plugin --profile <name> add file:/path/to/dsh-plugin-ledger
 > ```
 >
-> 症状很好认：宿主启动时告警 `lingda-ledger (@lingdaai/ledger): failed to import`。
+> 症状很好认：宿主启动时告警 `lingda-ledger (@lingda-ai/ledger): failed to import`。
 
 ```jsonc
 // workspace 配置：面板默认关，需要显式打开（写盘是外部副作用，不该由观测默认产生）

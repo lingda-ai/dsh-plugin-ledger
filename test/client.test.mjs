@@ -52,7 +52,7 @@ test('注册一个 ledger.cost tab，带引导页入口', async () => {
   const { ctx, log } = fakeCtx()
   await apply(ctx)
   const def = log.find((e) => e[0] === 'register')[1]
-  assert.equal(def.id, '@lingdaai/ledger')
+  assert.equal(def.id, '@lingda-ai/ledger')
   assert.equal(def.kind, 'ledger.cost')
   assert.equal(def.priority, 'extension')
   assert.equal(def.keepMounted, true)
@@ -76,8 +76,8 @@ test('有 slots 时，正文与标题各注册一次，key 是包名', async () 
   await apply(ctx)
   const seats = log.filter((e) => e[0] === 'registerSlot').map((e) => [e[1], e[2]])
   assert.deepEqual(seats, [
-    ['sidebar.right.pane.tab', '@lingdaai/ledger'],
-    ['sidebar.right.pane.tab.title', '@lingdaai/ledger'],
+    ['sidebar.right.pane.tab', '@lingda-ai/ledger'],
+    ['sidebar.right.pane.tab.title', '@lingda-ai/ledger'],
   ])
   const injected = log.filter((e) => e[0] === 'inject').map((e) => e[1])
   assert.deepEqual(injected, ['sidebar.right.pane.tab', 'sidebar.right.pane.tab.title'])
