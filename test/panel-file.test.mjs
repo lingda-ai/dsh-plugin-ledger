@@ -262,3 +262,15 @@ test('normalizeBudget：没有已知条目时不算均价（避免用假数预�
   const budget = normalizeBudget({ limit: 0.03 }, { cost: { amount: null, knownEntries: 0 } })
   assert.equal(budget.callsLeft, null)
 })
+
+test('生成时间统一成 ISO 字符串（store 给的是数字，面板按字符串截取）', () => {
+  const at = 1795159549380
+  const { payload } = buildPanelPayload(
+    { sessionId: 's1', generatedAt: at, totals: { entries: 0, cost: { amount: null } }, recent: [], topSources: [] },
+    { sources: [], sourceCount: 0 },
+  { maxBytes: 262144 }
+  )
+  assert.equal(typeof payload.generatedAt, 'string')
+  assert.match(payload.generatedAt, /^\d{4}-\d{2}-\d{2}T/)
+  assert.equal(new Date(payload.generatedAt).getTime(), at)
+})

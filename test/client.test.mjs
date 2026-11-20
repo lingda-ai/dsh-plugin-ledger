@@ -214,6 +214,11 @@ test('格式化口径：金额、千分位、占比', () => {
   assert.equal(formatAmount(0.015316, 'CNY'), '¥0.0153')
   assert.equal(formatAmount(null, 'CNY'), '—')
   assert.equal(formatAmount(0.5, 'USD'), '0.5000 USD')
+  // 小额不能被吞成 0.0000：3.2e-5 是真机跑出来的缓存命中一档，显示 0 就是撒谎
+  assert.equal(formatAmount(0.000032, 'CNY'), '¥0.000032')
+  assert.equal(formatAmount(0.000572, 'CNY'), '¥0.000572')
+  // 真的 0 仍然是 0（"确认没花钱"是有效信息）
+  assert.equal(formatAmount(0, 'CNY'), '¥0.0000')
   assert.equal(formatTokens(9260), '9,260')
   assert.equal(formatTokens(undefined), '—')
   assert.equal(formatShare(0.362), '36.2%')

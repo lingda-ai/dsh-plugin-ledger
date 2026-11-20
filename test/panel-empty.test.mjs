@@ -4,7 +4,7 @@
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { renderPayload } from '../lib/panel-view.js'
+import { renderPayload, formatLocalTime } from '../lib/panel-view.js'
 
 // 最小 React 替身：把树展开成纯文本，不引入 React 依赖
 const React = {
@@ -97,4 +97,18 @@ test('E-6 已经有钱在面板上时，费率失效同样要警示（这时候�
   })
   assert.match(out, /pricing\.json 不是合法 JSON/)
   assert.match(out, /仍按内置价计算/)
+})
+
+test('T-1 时间按本地时区渲染（明细行与页脚不能一个 UTC 一个本地）', () => {
+  const iso = '2026-11-20T07:35:17.000Z'
+  const out = formatLocalTime(iso)
+  assert.match(out, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
+  const d = new Date(iso)
+  assert.equal(out.slice(11, 13), String(d.getHours()).padStart(2, '0'))
+})
+
+test('T-2 缺失或非法时间给 —，不编一个时间出来', () => {
+  assert.equal(formatLocalTime(null), '—')
+  assert.equal(formatLocalTime(''), '—')
+  assert.equal(formatLocalTime('not-a-date'), '—')
 })
