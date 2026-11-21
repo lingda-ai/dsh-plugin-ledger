@@ -1,5 +1,32 @@
 # @lingda-ai/ledger
 
+## 快照契约（供其它插件只读消费）
+
+面板快照写到 `.dsh/ledger/<safeSessionId>.json`，`version: 1`，**只增字段不删字段**。
+
+```jsonc
+{
+  "version": 1,
+  "generatedAt": "2026-11-21T08:02:22.500Z",
+  "sessionId": "session-…",
+  "totals": { "cost": { "amount": 0.0359, "currency": "CNY", "knownEntries": 2, "unknownEntries": 0 },
+              "saved": { "amount": 1.25 }, "entries": 2 },
+  "window": {            // 0.1.14+：最近 N 小时（panel.windowHours，默认 24）的增量
+    "hours": 24, "since": 1795..., "cost": 0.035909, "saved": 1.250762,
+    "entries": 2, "knownEntries": 2, "unknownEntries": 0, "currency": "CNY",
+    "covered": false     // true = 窗口内条目都在；false = 环已淘汰早期条目，**窗口可能不完整**
+  },
+  "truncated": false
+}
+```
+
+消费方约定（塔台就是这么读的）：
+
+- 只读、不写、不 import 本包；文件不在或 `version !== 1` 就当没有该能力；
+- `window` 存在才谈「窗口增量」，否则只能用 `totals`，且必须写明口径是**累计**；
+- **`covered: false` 必须一路带出去**，不能让下游把残缺窗口当完整；
+- 未知费率（`unknownEntries`）不得折成 0。
+
 > 源码镜像：[GitHub](https://github.com/lingda-ai/dsh-plugin-ledger) · [Gitee](https://gitee.com/linzhengtong/dsh-plugin-ledger)
 
 DSH 右侧栏的**会话成本仪表**（生态发布名 `dsh-plugin-ledger`，中文名「账本」）。
