@@ -1,550 +1,122 @@
-# @lingda-ai/ledger
+# 账本 · Ledger
 
-## 快照契约（供其它插件只读消费）
+DSH 右侧栏的**会话成本仪表**：这次会话花了多少、花在哪一步、还能问几次。
 
-面板快照写到 `.dsh/ledger/<safeSessionId>.json`，`version: 1`，**只增字段不删字段**。
+> 安装包：`@lingda-ai/dsh-plugin-ledger` · 源码镜像：[GitHub](https://github.com/lingda-ai/dsh-plugin-ledger) · [Gitee](https://gitee.com/linzhengtong/dsh-plugin-ledger)
 
-```jsonc
-{
-  "version": 1,
-  "generatedAt": "2026-11-21T08:02:22.500Z",
-  "sessionId": "session-…",
-  "totals": { "cost": { "amount": 0.0359, "currency": "CNY", "knownEntries": 2, "unknownEntries": 0 },
-              "saved": { "amount": 1.25 }, "entries": 2 },
-  "window": {            // 0.1.14+：最近 N 小时（panel.windowHours，默认 24）的增量
-    "hours": 24, "since": 1795..., "cost": 0.035909, "saved": 1.250762,
-    "entries": 2, "knownEntries": 2, "unknownEntries": 0, "currency": "CNY",
-    "covered": false     // true = 窗口内条目都在；false = 环已淘汰早期条目，**窗口可能不完整**
-  },
-  "truncated": false
-}
+## 30 秒上手
+
+```bash
+dsh plugin --profile <你的 profile> add @lingda-ai/dsh-plugin-ledger
 ```
 
-消费方约定（塔台就是这么读的）：
-
-- 只读、不写、不 import 本包；文件不在或 `version !== 1` 就当没有该能力；
-- `window` 存在才谈「窗口增量」，否则只能用 `totals`，且必须写明口径是**累计**；
-- **`covered: false` 必须一路带出去**，不能让下游把残缺窗口当完整；
-- 未知费率（`unknownEntries`）不得折成 0。
-
-> 源码镜像：[GitHub](https://github.com/lingda-ai/dsh-plugin-ledger) · [Gitee](https://gitee.com/linzhengtong/dsh-plugin-ledger)
-
-DSH 右侧栏的**会话成本仪表**（生态发布名 `dsh-plugin-ledger`，中文名「账本」）。
-
-它回答三个问题，顺序很重要：
-
-1. **这次会话花了多少**——四档分开算（未缓存输入 / 缓存命中 / 缓存写 / 输出），不给平均价。
-2. **花在哪一步、为什么贵**——明细标出工具结果体量（`↑18.4k 字符`）、压缩前后上下文（`压缩前 42.0k`）、
-   缓存命中省下的钱（`缓存命中已省 ¥0.0153 · 占应花 25.1%`）。
-3. **还能问几次**——预算已用 92% · 还可约 5 次；余量不足时直接说"余量不足一问"。
-
-![账本面板](docs/panel.png)
-
-面板上几个"给用户看"的细节：
-
-- **标题优先**：头部显示会话标题（如「修复账本面板崩溃」）而不是 `sessio…affe8`，鼠标悬停可看到完整 id。
-- **约几分**：`¥0.0479` 旁边补一句「约 4.8 分」——4 位小数对人类太细。
-- **距今**：页脚给「快照 22:32:42 · 3 分钟前」，超过 60 秒转琥珀色并标「可能已过期」。
-- **复制摘要**：一键把「累计/次数/缓存省了多少/四档/最贵一步/费率来源」复制成文本，可直接贴进周报或工单。
-- **没配预算也给一句话**：`加 budget: { limit: 0.5 } 可显示"还能问几次"（¥0.5 ≈ 93 次调用）`——按本次均价换算，用户才知道 0.5 元是多少次。
-
-> 图是 `lib/client.js` 的 `renderPayload()` 真实输出（三种宽度：380 / 380 展开 / 300px），
-> 不是设计稿。刷新：`node scripts/render-panel.mjs`。
-
-## 为什么不是"又一个 token 计费面板"
-
-**缓存命中省下的钱是严格算出来的，不是估的。** 两个单价都在同一张价表里，
-差额 `cacheReadTokens × (input − cacheRead)` 是确定值——这是账本里唯一能这样算的"省了多少钱"。
-压缩省下的上下文只报 token 差、**不折算金额**，因为省下的 token 属命中还是未命中无法可靠推断，
-硬乘单价就是编数字。
-
-**未知永远显示成未知。** 费率缺失、用量不全、工具来源不明，一律显式返回原因（`— no-rate`、
-`其中 1 条费率未知，合计偏低`），**绝不用 0 或估算值填坑**。一个敢说"我不知道"的账本，
-才配被用来做决策。
-
-## 三条铁律
-
-1. **采集只订阅**：不改 session/event、不 emit、不在关键路径上做重活。
-2. **决策只改配置**：只经 `agent/request` 返回替换的 `LlmCallConfig`，
-   不在工具执行中途中断。
-3. **未知即未知**：费率缺失、用量不全、工具来源不明，一律显式返回 unknown
-   及原因，**绝不用 0 或估算值填坑**。
-
-## 架构
+装完打开右侧栏的「**账本**」标签页即可；空白右栏的引导页里也有入口。
 
 ```
-session/event (post-commit, fire-and-forget)
-        │  根 ctx 订阅（agent scope 会被过滤，故不能挂 agent 内）
-        ▼
-   lib/ledger.js  ── 归一化 usage → 计价 → 归因 → 入账
-        │                    │          │
-        │              lib/pricing.js   lib/attribution.js
-        ▼                    │          │
-   lib/store.js  ◄───────────┴──────────┘
-   （每会话双环 + 增量聚合 + LRU 会话淘汰）
-        │
-        ├──► lib/guard.js ──► agent/request（只改 LlmCallConfig，默认关）
-        │                 └──► agent.inject（用 createUserMessage 自造事实，需配 budget.limit）
-        └──► lib/audit-tool.js（ledger_query，Agent 主动查账，默认开）
-                 └──► lib/client.js（M5：侧栏面板，只读快照）
+┌ 账本  会话 sessio…615                     复制摘要  刷新 ┐
+│ ¥0.1083  8 次调用 · 归因无信号 · 约 10.8 分               │
+│ 缓存已省 ¥4.8390 · 如未命中需 ¥4.9473（少花 97.8%）       │
+│ 未设预算 · 加 budget: { limit: 0.5 } 可显示"还能问几次"   │
+├──────────────────────────────────────────────────────────┤
+│ 未缓存输入  2,288 tok                            ¥0.0023  │
+│ 缓存命中    4,937,728 tok · 几乎全命中            ¥0.0988  │
+│ 输出        3,647 tok                            ¥0.0073  │
+├──────────────────────────────────────────────────────────┤
+│ 谁花的  共 1 个来源                                      │
+│ 未归因                               ¥0.1083  100.0%     │
+├──────────────────────────────────────────────────────────┤
+│ 最近                    最贵 T20·S32 ¥0.0154 · 占 14.2%  │
+│ 15:09 模型 T20·S28  616k tok · 工具结果 1,264 字符  ¥0.0133│
+│ 15:09 模型 T20·S29  616k tok · 工具结果   397 字符  ¥0.0127│
+└ 快照 15:11:52 · 40 分钟前 · 按自定义费率估算 · 2026-11-20 ┘
 ```
 
-## 对外接口
+## 面板在说什么
 
-```js
-// Host 半：插件通过 ctx.provide 暴露只读账本服务
-ctx.ledger.snapshot(sessionId, { lastN })   // 冻结快照：totals / topSources(≤3) / recent / trace / generatedAt
-ctx.ledger.sources(sessionId, { limit, sort }) // 全部来源（不截断）：amount / entries / share + 未知计数
-ctx.ledger.overview({ limit })              // 跨会话概览，LRU 顺序（最近使用在前）
-ctx.ledger.totals(sessionId)                // 只要累计
-ctx.ledger.stats()                          // { handled, failures, sessions }
-ctx.ledger.config                           // 生效配置（已合并默认值）
-
-// 模型半：工具
-ledger_query({ op?, sessionId?, lastN?, limit?, sort? })  // op=snapshot|sources|overview
-```
-
-`snapshot` 返回的对象是被冻结的，面板可以放心持有，不用担心被采集路径改写。
-
-`sources` / `overview` 是纯读聚合：**不 touch LRU**——只读不续命，只有新事件才让会话提前，否则面板轮询会把 `maxSessions` 的淘汰策略废掉。
-
-## 性能
-
-`node --expose-gc scripts/bench.mjs`（本机 v22.23.4）：
-
-| 场景 | 单事件成本 |
+| 位置 | 含义 |
 |---|---|
-| 4 会话稳定态 | 1.21 µs |
-| 64 会话稳定态 | 1.12 µs |
-| 每条事件都换新会话（LRU 抖动，最坏） | 3.81 µs |
-| 300k 事件后 heapUsed | 3.2 MB（有界） |
+| `¥0.1083 · 8 次调用` | 本会话累计金额与模型调用次数 |
+| `约 10.8 分` | 同一个数换成人民币角分，四位小数对人太细 |
+| `缓存已省 ¥4.8390` | 缓存命中相对未命中单价省下的钱（严格相减，见下） |
+| **四档** | 未缓存输入 / 缓存命中 / 缓存写 / 输出，各按各的单价算 |
+| `谁花的` | 按插件归因的来源桶；`未归因` 表示宿主没给来源信号 |
+| `最近` | 最近几次模型调用，带该步工具结果的字符量 |
+| 页脚 | 快照时间、距今多久、按哪套费率算的、费率表日期 |
 
-稳定态是微秒级、且与会话数无关；唯一会放大成本的是会话高频换入换出。
+## 怎么读这些数字
 
+**1. 四档分开算，不给平均价。**
+同一份 token，命中与未命中差几十倍。把四档压成一个平均单价，算出来的数字既不是这档也不是那档。
 
-## 模块
+**2. 缓存省下的钱是严格算出来的。**
+`saved = cacheReadTokens × (input 单价 − cacheRead 单价)`，两个单价在同一张表里，差额是确定值。
+这是账本里唯一能这样算的"省了多少钱"。
 
-| 文件 | 职责 | 关键点 |
-|---|---|---|
-| `lib/index.js` | 插件入口、事件接线、服务暴露 | `apply(ctx, config)`，纯 ESM |
-| `lib/config.js` | 默认值与合并 | 改变行为的开关默认关闭 |
-| `lib/usage.js` | TokenUsage 归一化 | 计数 disjoint，`totalTokens` 缺失不伪造 |
-| `lib/pricing.js` | 四档单价计价 | 缓存读/写分价；无费率返回 unknown |
-| `lib/ring.js` | 有界环形缓冲 | O(1) 写入，无 shift |
-| `lib/store.js` | 会话账本与聚合 | 双环 + LRU + 已知/未知分离 |
-| `lib/attribution.js` | 归因 | 仅 exact / shared / unresolved 三态 |
-| `lib/ledger.js` | 采集 | 归因取 `step-1` 工具集（因果方向） |
-| `lib/guard.js` | 预算守卫 | 双通道 + 回滞，只在跨阈值投递一次 |
-| `lib/trace.js` | 行为流水 | OTel `gen_ai.*` 命名 + 默认脱敏 |
-| `lib/audit-tool.js` | `ledger_query` | 返回摘要而非原始 JSONL |
-| `lib/client.js` | 浏览器半**产物** | 构建生成，勿手改；loader 形态见下 |
-| `lib/client.src.js` | 浏览器半源码 | 单测与脚本用它，改完跑 `npm run build:client` |
+**3. 未知永远显示成未知。**
+费率缺失显示 `— no-rate`，面板会写「其中 N 条费率未知，合计偏低」，**不会用 0 或估算值填坑**。
+一个敢说"我不知道"的账本，才配用来做决策。
 
-## 配置示例
+**4. 压缩省下的上下文只报 token，不折钱。**
+省下的 token 属命中还是未命中无法可靠推断，硬乘单价就是编数字。
+
+## 设置
 
 ```yaml
-ledger:
-  capacity: 2000        # 每会话条目上限
-  maxSessions: 64       # 会话 LRU 上限
-pricing:
-  currency: CNY
-  rates:
-    deepseek/chat:
-      input: 0.000001
-      output: 0.000002
-      cacheRead: 0.0000002
-      cacheWrite: 0.0000012
+# profile 的插件配置里
+panel:
+  enabled: true        # 默认开：关掉会让"装完打开面板看到没数据"
+  dir: .dsh/ledger     # 相对会话工作区根
+  intervalMs: 3000     # 同会话两次落盘的最小间隔
+  maxBytes: 262144     # 超限降级为合计 + Top 来源
+  windowHours: 24      # 快照附带「最近 N 小时」的增量
 budget:
-  limit: 5              # null = 不启用
+  limit: 0.5           # 配了才显示"还能问几次"
   threshold: 0.8
-  downgrade: null       # {provider, model, maxTokens}；显式配置才生效
-attribution:
-  toolOwners:
-    food.query: plugin-food
-    kb.search: plugin-kb
+archive:
+  enabled: true        # 会话结束追加到 ~/.dsh/ledger/archive/<日期>.jsonl，默认留 90 天
 trace:
-  enabled: false        # 隐私优先，默认关
-  capacity: 5000
-  maxTextLength: 200
+  enabled: false       # 行为流水，隐私优先默认关
 ```
 
-## 已知边界（不要绕过）
-
-- **工具级归因无法自动获得**：`tool/call` 无来源字段、`tools/change` 无载荷、
-  `register` 签名不带来源。只能靠 `attribution.toolOwners` 声明。
-  详见 `docs/spikes.md` P-2。
-- **不能在 `agent/request` 里改上下文**：返回类型是 `LlmCallConfig`，
-  源码注释明确 "cannot mutate messages"。
-- **首版不写回会话日志**：`KNOWN_SESSION_EVENT_TYPES` 是固定集合，
-  集合外事件会阻断持久化读取，除非带 `ignorable`。
-
-## 开发
+**官方调价了怎么办**：写一份覆盖文件，不用改代码、不用等新版本。
 
 ```bash
-node --test test/*.test.mjs    # 188 例
-npm run bench                  # 热路径基准（需 --expose-gc）
-bash scripts/ci.sh             # 等价 CI：单测 + 性能门禁 + 契约冒烟
-```
-
-CI（`.github/workflows/ci.yml`）：Node 18/20/22 三档跑单测，仅 Node 22 跑性能门禁，
-阈值只拦数量级劣化（稳定态 >6µs、会话抖动 >15µs、heap >32MB 才失败）。
-
-`scripts/smoke-dsh.mjs` 用**真实** `@deepseek-ai/dsh-llm` 构造一次预算消息，
-验证 `createUserMessage` 的契约；没装运行时时自动 SKIP 而不是失败。
-这是唯一"必须真机才有意义"的检查，所以不放进单测。
-
-`scripts/smoke-registry.mjs` 用**真实** `@deepseek-ai/dsh-tools` 的三个校验器
-（`assertSupportedJsonSchema` / `assertObjectJsonSchema` / `validateJsonSchemaValue`）
-验证工具定义，并真跑一次 `execute` 确认返回值能通过自己声明的 schema。
-
-## 开发期挂载（不 install、不改 profile）
-
-`mount/ledger-dev.overlay.yml` 是可直接叠加的 patch 层：
-
-```bash
-dsh --profile <已有profile> --patch <仓库>/mount/ledger-dev.overlay.yml
-```
-
-已实测：loader 会把 overlay 里的绝对路径规范化为 `file:///...` 再装配，
-所以开发期不需要把插件装进 profile 的 `node_modules`。
-先 `--dump-config` 看装配结果，确认 `lingda-ledger` 那一条在那里。
-
-
-零运行时依赖：Host 半不 import 任何 `@deepseek-ai/*` 做业务逻辑；唯一例外是预算事实要用的
-`createUserMessage`，走可选 peer + 动态 import，拿不到就自动降级为"只经 ledger_query 拉取"。
-
-**客户端半边有一步构建**（`npm run build:client`）：原因见下一节，这不是可选项。
-
-## 客户端产物：为什么 `lib/client.js` 是生成的
-
-`dsh-client-modules` 的 Node 半侧会把每个包的 `client.js` **原样拼接**成一个 combo 脚本
-（`/plugins/??a/client.js,b/client.js&rev=…`），浏览器按 **classic script** 解析。因此客户端
-入口里不能出现任何 `import` / `export` 语句。0.1.4 直接发布了 ESM 源码，结果重启时整页抛
-`SyntaxError: Cannot use import statement outside a module`，`client-modules` 报 import failed，
-Desktop 宿主直接停住（崩溃记录见 `~/Library/Logs/DSH Desktop/`）。
-
-产物必须是这个形态（与宿主自带插件、`dsh-ppt`、`@linxin666/dsh-client-ui-skill-explorer` 一致）：
-
-```js
-window.__ModuleLoader__.load({
-  id: "@lingda-ai/dsh-plugin-ledger",   // 必须等于安装后的包名，宿主按包名索引
-  factory: (require) => {
-    var module = { exports: {} }, exports = module.exports
-    // …打包进来的 panel-path / tool-size / panel-view / client.src…
-    exports.apply = apply               // 宿主调它，ctx 就是浏览器侧 ctx
-    return module.exports
-  },
-})
-```
-
-- 源在 `lib/client.src.js` + `lib/panel-view.js` + `lib/panel-path.js` + `lib/tool-size.js`；
-- `node scripts/build-client.mjs` 合并去模块语法后生成 `lib/client.js`（改完必须重跑并提交产物）；
-- React 只能来自 factory 的 `require("react")`，产物里不再有 `import('react')`；
-- `test/client-bundle.test.mjs` 在 vm 里用假 `__ModuleLoader__` 加载产物，断言"零 import/export、
-  id 等于包名、apply 能登记 tab"——这条测试的存在就是为了不再犯同一个错。
-
-## 右侧栏面板
-
-面板 = DSH 右侧栏的一个 tab（kind `ledger.cost`），数据来自 Host 写的**只读快照**：
-
-```yaml
-- id: lingda-ledger
-  name: '@lingda-ai/ledger'
-  config:
-    panel:
-      enabled: true          # 默认关闭：写盘是外部副作用
-      dir: .dsh/ledger       # 相对会话工作区根
-      intervalMs: 3000       # 同会话最小落盘间隔
-      maxBytes: 262144       # 超限降级为合计 + Top 来源
-```
-
-- 文件：`<session cwd>/.dsh/ledger/<safeSessionId>.json`，原子写（`.tmp` → rename）。
-- 读取：浏览器侧 `workspaceFiles` remote，相对路径 `stat` 换绝对路径再 `read`。
-- 打不开面板时先看 `ctx.ledger.panel`：`{enabled, dir, stats}`。
-
-## 历史归档与对账
-
-会话结束不再"人走账消"：账本会追加到 `~/.dsh/ledger/archive/2026-11-21.jsonl`（按天分片、默认保留 90 天）。
-一行一条调用，字段是 token 数与金额，**没有任何对话内容**。
-
-```bash
-# 和厂商账单对账：按天并排，给差异与差异率
-node scripts/reconcile.mjs --bill 账单.csv --from 2026-11-01 --to 2026-11-30 --out 报告.md
-```
-
-账单 CSV 只要有两列（日期 + 金额）就能读，中英文表头都认。报告会标出**未计价条数**——
-算不出来的部分绝不当 0 混进总额，否则差异率会假性变小。
-
-对账的商业用法见 [`docs/poc-reconcile-playbook.md`](docs/poc-reconcile-playbook.md)：
-2 周、3 家客户、零服务端，验证"团队愿不愿为对账付钱"。
-
-## 面板状态总表（改 UI 前先看这个）
-
-`node scripts/render-states.mjs` 会把面板在 **7 个关键状态**下并排画出来：
-
-| 状态 | 它要回答的问题 |
-|---|---|
-| 常规（多来源） | 一次会话的钱花在哪、最贵一步是谁 |
-| 空态 | 第一次打开为什么没数据、接下来会记什么 |
-| 费率未知 | 算不出来时是否显式说原因，而不是给 0 |
-| 费率文件被拒 | 用户改的价没生效时，有没有显性地告诉他 |
-| 多来源展开 | 来源超过 6 个时的折叠/展开是否还读得下去 |
-| 预算告急 | 「还能问几次」在 92% 时是不是比百分比更可行动 |
-| 极窄 300px | 右栏分栏后是否还能用（截断顺序是否合理） |
-
-改文案或布局后跑一次、肉眼过一遍再提交——单测只能断言"有没有这句话"，
-判断不了"这句话读起来是不是那个意思"。
-
-## 面板链路冒烟
-
-```bash
-node scripts/smoke-panel.mjs   # ci.sh 已接入
-```
-
-不 boot 真 DSH、不吃模型凭据：假 ctx 派发 `session/event` → 计价 → 落盘，
-再用与生成声明同签名的 `workspaceFiles` remote 读回，断言两侧金额/四档/条目数逐项一致。
-真机多出来的只有物理传输那一层。
-
-## 费率从哪来（重要）
-
-内置表只收**官方页面可查**的价格，不猜、不估：
-
-| 模型 | 缓存命中 | 缓存未命中 | 输出 |
-|---|---|---|---|
-| `deepseek-v4-flash` | 0.02 | 1 | 2 |
-| `deepseek-v4-pro` | 0.025 | 3 | 6 |
-| `deepseek-chat` / `deepseek-reasoner` | 同 flash（官方明示的兼容别名） | | |
-
-单位：元 / 百万 tokens。来源 `https://api-docs.deepseek.com/zh-cn/quick_start/pricing`，抓取日 2026-11-19。
-官方已声明价格可能变动，别把这张表当合同。
-
-三条口径说明：
-
-- **`cacheWrite` 记 0**。DeepSeek 只有"命中 / 未命中"两档，没有独立的缓存写单价；缓存写入的
-  token 本来就计入未命中输入。若这里再给价，同一批 token 会被收两次钱。其它 provider 单独
-  收缓存写时，在配置里覆盖即可。
-- **表里没有的模型** → `unknown(no-rate)`，面板显示 `—`，不用 0 或平均值冒充。
-- **覆盖**按单模型深合并，只改你要改的那一项：
-
-```yaml
-pricing:
-  rates:
-    deepseek-v4-pro:
-      output: 1.2e-6   # 元/token；等价于 1.2 元/百万
-```
-
-## 官方调价了怎么办：`pricing.json`
-
-内置表是 2026-11-19 的价。官方一调价，你不需要改代码、也不需要等新版本：
-
-```bash
-# 写一份覆盖文件（不存在就纯用内置价）
-mkdir -p ~/.dsh/ledger
 cat > ~/.dsh/ledger/pricing.json <<'JSON'
-{
-  "asOf": "2026-12-01",
-  "source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing",
-  "rates": {
-    "deepseek-v4-flash": { "input": 1.2, "output": 2.4, "cacheRead": 0.03, "cacheWrite": 0 }
-  }
-}
+{ "asOf": "2026-12-01",
+  "rates": { "deepseek-v4-flash": { "input": 1.2, "output": 2.4, "cacheRead": 0.03, "cacheWrite": 0 } } }
 JSON
 ```
 
-- **单位是元 / 百万 tokens**（和官方公告一致，不用自己换算成 1e-6）。
-- **四档必须齐**（`input` / `output` / `cacheRead` / `cacheWrite`）。
-- **整条生效或整条拒绝**，不逐档合并：四档共同定义一个模型的价格语义，缺一档就拿旧价补新价，
-  算出来的数字既不是旧价也不是新价。宁可不认（显示 `—`），也不给一个看着像真的假数。
-- 只覆盖你写到的模型，其余继续用内置价。
-- 改完**重启会话**生效（boot 时读一次，计价热路径不做 IO）。
+- 单位是**元 / 百万 tokens**（与官方公告一致）；
+- **四档必须齐，整条生效或整条拒绝**——缺一档就拿旧价补新价，算出来既不是旧价也不是新价；
+- 写错了不会静默回退：面板顶部会出现琥珀色警示，说明金额仍按内置价计算。
 
-写错了不会静默回退：面板顶部会出现一条琥珀色警示说明"没生效、金额仍按内置价计算"，
-`ledger_query` 带 `op: "rates"` 可以查当前生效表、来源日期、以及哪个模型因为什么被忽略。
+## 隐私
 
-## 面板预览（代码的真实输出）
-
-```bash
-node scripts/render-panel.mjs   # → docs/panel-preview.html
-```
-
-不是设计稿：它调用 `lib/client.js` 的 `renderPayload()`，用与测试同一份 payload
-生成真实 DOM，380px / 300px 两档并排。改 UI 后重跑即可刷新。
-
-## 来源桶口径
-
-面板与 `ledger_query` 的 `sources` 里，三个保留 key 各有确定含义：
-
-| key | 含义 |
-|---|---|
-| `shared:unknown` | 多个**已知** owner 共同贡献上下文，确实拆不到单个插件 |
-| `unattributed` | 完全没有归因信号（无 owner、无映射）——不是"拆不开"，是"没来源" |
-| `system:compaction` | 上下文压缩产生的调用，不属于任何插件 |
-
-面板会把这几个 key 翻成人话再显示，不把原始字符串露给用户。
-
-## 发布前检查
-
-```bash
-bash scripts/prepublish.sh
-```
-
-闸门依次检查：工作区干净 → 分支 main → `scripts/ci.sh` 全通过 → `npm pack` 内容只有
-`package.json` / `README.md` / `cordis.patch.yml` / `lib/` → 打印版本与 `private` 状态。
-
-两点由 owner 决定，代码不代劳：
-- `private` 目前是 `true`，真要发 registry 需改成 `false` 并确认目标 registry；
-- 仓库尚未配置 `git remote`（推到哪个组织需要明确地址）。
-- `license` 未声明——开源/商业由产品决策定，脚本只如实打印。
-
-**不加 slots 到 `dsh.client.inject` 的原因**：`inject` 是"必需服务"，写进去以后
-没有 slots 的宿主（CLI 形态）会直接不启动插件，连 tab 类型都注册不上。
-现在的写法是可选访问：有 `ctx.slots` 就挂正文，没有就只登记类型——降级更稳。
-
-## 路线图
-
-产品下一步做什么、做到什么算完，见 [`docs/roadmap.md`](docs/roadmap.md)：
-
-| 阶段 | 版本 | 主题 |
-|---|---|---|
-| P0 | 0.2.x | 打地基：自检报告、历史落盘、清掉审计遗留、门禁不再假红 |
-| P1 | 0.3.x | 从"看见"到"改变"：预算入口、超预算提醒、省钱建议 |
-| P2 | 0.4.x | 个人版完整：总账视图、导出周报、保留策略 |
-| P3 | 0.5.x–1.0 | 团队版底座：上报通道、聚合服务、License（有闸门） |
-
-## 里程碑
-
-- M0 骨架 + 计价/归因/存储/守卫/工具 + 探针报告 ✅
-- M1 契约核实 + 装配集成测试 + 热路径基准 ✅（4 处猜测全部落定，见 `docs/spikes.md`）
-- M2 `ledger_query` / `ctx.ledger` 真机接入 DSH 进程
-- M3 行为流水落盘 ✅（`lib/trace-file.js`：入队 + 合并写 + 单文件封口，双击开关默认关）
-  - 面板快照落盘 `lib/snapshot-file.js`（原子写 + 节流 + 超限截断，默认关闭）
-- M4 面板只读快照 + 成本 Top
-- M5 侧栏「账本」Tab 与设置卡片
-  - 已落地 P0：`ledger.cost` 类型登记 + 引导页入口（空白右栏可见「账本」胶囊）+ 关闭清理；
-    正文（`sidebar.right.pane.tab`）待 `dsh-client-ui-slots` 契约核实后接入，见 `docs/spikes.md` 末节。
-
-
-### 不装 key 也能验证整条链路
-
-```bash
-bash scripts/ci.sh --real-host        # 门禁全跑，含真机端到端（需 DSH_ROOT）
-node scripts/verify-real-host.mjs --cwd /path/to/dsh-root   # 只跑真机那一段
-```
-
-宿主 provider 的端点可配（`$DEEPSEEK_BASE_URL`），所以脚本能在**没有任何真实凭据**的机器上：
-起一个本地 Messages 兼容端点（返回固定 usage）→ 让 DSH 真发一次请求 → 读账本快照 → 逐项核对金额、
-四档拆分、缓存节省、路由、时间格式。7 项断言，全部可复现。
-
-**它证明什么、不证明什么**（这点必须说清楚）：
-
-| 证明 | 不证明 |
-|---|---|
-| 事件真的收到、形状解析对 | 模型跑得好不好 |
-| 计价公式与手算一致 | 真实 token 分布下的表现 |
-| 快照真的落盘、字段类型对 | 右栏 UI 在浏览器里的呈现（需人看） |
-| 面板读得到、金额不自适应吞 0 | — |
-
-模型是固定文本、token 是脚本给的固定值，所以它是**链路证据**，不是效果证据。
-
-## 发布
-
-包已配好可发布字段（无 `private`、`publishConfig.access: public`、`files` 白名单）。
-发布前先在 npm 上确认 scope 归属：
-
-```bash
-bash scripts/publish.sh           # 六项前置检查 → 门禁 → 发布 → 回读 registry 确认
-```
-
-直接 `pnpm publish` 也能发，但脚本会先挡住四类常见翻车：未登录、org 不存在、版本已发过、工作区有未提交改动。
-用 pnpm 而不用 npm —— 本环境 `npm pack` 会崩（`Exit handler never called`）。
-
-发布包里**只有** `lib/`、`cordis.patch.yml`、`README.md`、`LICENSE` 和两份技术文档；
-`docs/business-plan.md` 属内部材料，不进包。`prepublishOnly` 会先跑一遍单测，测不过发不出去。
-
-## 安装（DSH 侧外部插件）
-
-### 从 npm 安装（推荐）
-
-```bash
-dsh plugin --profile <profile> add @lingda-ai/dsh-plugin-ledger@0.1.4
-```
-
-`@lingda-ai/dsh-plugin-ledger` 是**自包含单包**（lib 直接打进包内，零运行时依赖），与 `@lingda-ai/ledger` 内容一致。之所以做单包，是因为国内镜像源（华为云、阿里云等）对"老包的新版本"同步滞后：跨包硬依赖会直接报 `ERR_PNPM_NO_MATCHING_VERSION`，而单包只要镜像能取到它就够。
-
-若镜像仍报找不到版本，任选其一：把 DSH 的安装源切到 `https://registry.npmjs.org`；或等几分钟让镜像回源；或用下面的 git 方式。
-
-
-```bash
-# 代码仓（已公开，可直接 clone/链接）
-git clone https://gitee.com/linzhengtong/dsh-plugin-ledger.git
-
-# 方式一：从 Gitee 直装（无需 npm 账号，已实测可用；#v0.1.0 锁版本）
-dsh plugin --profile <name> add "git+https://gitee.com/linzhengtong/dsh-plugin-ledger.git#v0.1.0"
-
-# 方式二：从 npm（需该包已发布）
-dsh plugin add @lingda-ai/ledger
-```
-
-> **用 `file:` 装开发版时有个坑（我们踩过）**：pnpm 把文件**硬链接**进 profile ——
-> 改已有文件的内容会即时生效（同 inode），但**新增文件不会被同步**（目录结构是复制的）。
-> 所以往里加了新模块之后，必须重装才能看到它：
->
-> ```bash
-> rm -rf ~/.dsh/profiles/<name>/node_modules/@lingda-ai
-> dsh plugin --profile <name> add file:/path/to/dsh-plugin-ledger
-> ```
->
-> 症状很好认：宿主启动时告警 `lingda-ledger (@lingda-ai/ledger): failed to import`。
-
-```jsonc
-// workspace 配置：面板默认关，需要显式打开（写盘是外部副作用，不该由观测默认产生）
-{
-  "panel": { "enabled": true, "dir": ".dsh/ledger" },
-  "budget": { "limit": 0.05, "threshold": 0.8 }
-}
-```
-
-右侧栏会出现「账本」标签页。三个开关默认全关，理由写在 `lib/config.js` 顶部注释里：
-
-| 开关 | 默认 | 说明 |
-|---|---|---|
-| `panel.enabled` | **`true`**（0.1.11 起） | 面板取数靠 Host 落盘快照。默认关会导致"装完打开面板看到没数据"，实测这是最大的劝退点；写的是工作区里 ≤256KB 的只读 JSON，不含对话内容，会话结束即删。不想留文件就显式关掉 |
-| `archive.enabled` | **`true`** | 历史归档：会话结束把账本追加到 `~/.dsh/ledger/archive/<日期>.jsonl`，默认保留 90 天。只存 token 数与金额，**不存任何对话内容**；`actor`（git email）默认不写 |
-| `trace.enabled` | `false` | 隐私优先：行为流水默认不记 |
-| `trace.file.enabled` | `false` | 写文件是二次副作用，要再开一层 |
-
-## 免费与商业的边界
-
-**这个插件本身是免费的，全部功能都在开源版里。** 商业化不靠给插件加锁，靠后面那层：
-
-| 层 | 归属 | 回答的问题 |
-|---|---|---|
-| 单会话账本（本仓库） | 开源免费 | 这次会话贵不贵、贵在哪一步 |
-| 团队账本（未开工） | 付费 | 这个部门/项目/人这周花了多少、该不该管 |
-| 企业账本（未开工） | License + 私有化 | 采集到的钱和账单对得上吗、合规审计 |
-
-分界线是「会话账本 → 团队账本」，不是更多图表。要跨人/跨工具聚合，必须先有身份绑定、
-上报通道、共享计价包三块底座——这些还没做，也不打算在验证之前做。
+- 快照只含 **token 数与金额**，不含任何对话内容；
+- 快照文件在工作区 `.dsh/ledger/<会话>.json`，单文件 ≤256KB，原子写，**会话结束即删**；
+- 历史归档默认只写 token 与金额，`actor`（git email）默认不写；
+- 行为流水（`trace`）默认关闭——它才可能包含工具名与参数摘要。
 
 ## 已知限制
 
-- **归因只到插件级，且只认同轮上一步**：工具来源靠 `attribution.toolOwners` 映射，
-  跨轮不继承（宿主不提供工具归属信息，见 `docs/spikes.md` C-5）。
-- **压缩省下的上下文不折算金额**：只报 token 差，理由见上。
-- **内置价表的日期是 `2026-11-19`**：厂商调价后需人工更新 `lib/pricing-table.js`，
-  面板脚注会显示这个日期，不会假装"实时"。
-- **npm 上发的是自包含包**：`@lingda-ai/dsh-plugin-ledger`（当前 0.1.4）内容与主包一致，
-  可直接 `dsh plugin add`；`@lingda-ai/ledger` 是主包名，不保证在 registry 上同步存在。
+- **归因只到插件级**：宿主不提供工具来源字段，只能靠 `attribution.toolOwners` 声明映射。
+- **压缩省下的上下文不折钱**：只报 token 差。
+- **内置价表的日期是 2026-11-19**，厂商调价后用 `pricing.json` 覆盖，面板脚注会显示这个日期，不假装"实时"。
+- **面板数据来自 Host 落盘快照**：刚重启、或恰好没有模型调用时，面板会显示"还没有成本快照"，
+  下一次调用后自动出现（轮询 5 秒）。
 
-## 开发
+## 卸载
 
 ```bash
-node --test test/*.test.mjs                 # 188 例断言
-node --expose-gc scripts/bench.mjs --gate   # 性能门禁（热路径 <6µs、长会话 <8µs/<20MB）
-bash scripts/ci.sh                          # 单测 + 基准 + 三个冒烟
-node scripts/render-panel.mjs               # 刷新 docs/panel-preview.html（单状态深看）
-node scripts/render-states.mjs              # 刷新 docs/panel-states.html（7 个状态并排）
+dsh plugin --profile <你的 profile> remove @lingda-ai/dsh-plugin-ledger
+rm -rf ~/.dsh/ledger          # 可选：删掉归档与费率覆盖
 ```
 
-协议与身份字段见 [`docs/wire-format.md`](docs/wire-format.md)——那里冻结的是**不可逆**的部分
-（计量单位、幂等键、身份线索），已经在采集时写入，哪怕现在一条都不上报。
+## 文档
+
+| 文档 | 内容 |
+|---|---|
+| [`docs/technical.md`](docs/technical.md) | 模块职责、性能、对外接口、构建与真机验证方法 |
+| [`docs/snapshot-contract.md`](docs/snapshot-contract.md) | 快照 JSON 契约（供其它插件只读消费） |
+| [`docs/wire-format.md`](docs/wire-format.md) | 计量协议与身份字段（不可逆部分） |
