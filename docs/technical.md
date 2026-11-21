@@ -242,6 +242,19 @@ token 只是 `measures` 里的一种单位。计划中的第二个来源（Trae 
 
 ---
 
+### 7.4 历史归档为什么按天分片、为什么默认开
+
+账本只在内存里，`session/disposed` 时快照被删——**昨天花了多少无从查起**。归档补的正是这一层。
+
+- **按天分片** `archive/<YYYY-MM-DD>.jsonl`：单文件有界；`prune()` 直接按文件名删（不读内容）；
+  用户能 `grep` 自查；将来换 SQLite 时按天导入是最自然的迁移。
+- **热路径零 IO**：与 trace 同一套路，`enqueue` 只入队，定时器合并成一次 `appendFileSync`；
+  队列有界（满了丢最旧的并计数），异常吞掉。
+- **默认开启**的理由与面板一致：默认关的真实后果是"功能存在但没人能用到"。隐私边界靠字段约束保证——
+  只存体积与金额、不存内容、不存绝对路径，`actor`（git email）默认不写。
+- **两条写入时机**：`session/disposed`（会话结束）与每 60 秒补写一次（进程被杀最多丢一分钟）。
+- **未知成本原样保留 `reason`**：归档里出现 0 就等于把"不知道"说成"没花钱"，对账时会变成假精度。
+
 ### 8.0 面板默认开启（0.1.11 起）
 
 `panel.enabled` 的默认值从 `false` 改成 `true`。这不是"顺手改个默认值"，而是一次真机教训：
@@ -286,6 +299,8 @@ Host 会显式告警"面板读不到"，而不是让用户对着空面板猜。
 | `test/client-lifecycle.test.mjs` | 客户端生命周期 | 登记可逆、重复 apply、无 slots 降级、登记抛错不冒泡 |
 | `test/snapshot-roundtrip.test.mjs` | 写盘→读回全链路 | 20 条明细（400+ 行）分页读回、truncated 落盘、二级降级不超 maxBytes |
 | `test/guard-downgrade.test.mjs` | 预算降级矩阵 | provider/model/maxTokens 覆盖、阈值、未知成本不判、next 抛错冒泡 |
+| `test/archive.test.mjs` | 历史归档 | 按天分片、队列有界、保留裁剪、隐私字段、插件级 e2e |
+| `test/reconcile.test.mjs` | 对账 PoC | CSV/日期解析、未计价单列、差异率符号 |
 | `test/client-artifact-render.test.mjs` | 产物渲染 | 用 `lib/client.js` + 真 React 渲染有数据态与组件首帧（抓出过重名常量导致的 SyntaxError） |
 
 **SKIP 不等于通过**：冒烟脚本找不到 DSH 运行时用退出码 2 表示 SKIP，`prepublish.sh` 第 6 步把 SKIP 判 FAIL。

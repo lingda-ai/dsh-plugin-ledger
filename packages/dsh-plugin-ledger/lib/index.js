@@ -24,6 +24,7 @@ import { createBudgetGuard } from './guard.js'
 import { createLedgerQueryTool } from './audit-tool.js'
 import { makeBudgetMessage } from './budget-message.js'
 import { createSnapshotPublisher } from './snapshot-file.js'
+import { createArchive, archiveRecordOf } from './archive.js'
 import { PANEL_DIR } from './panel-path.js'
 import { createTraceSink } from './trace-file.js'
 
@@ -158,6 +159,71 @@ export function apply(ctx, rawConfig) {
   // 读的是 .git/config 与 ~/.gitconfig 两个小文件，**不起 git 子进程**。
   const identity = createIdentity()
 
+  // 历史归档：会话结束（以及每分钟）把账本并入 ~/.dsh/ledger/archive/<日期>.jsonl。
+  // 热路径零 IO：enqueue 只入队，定时器合并写。
+  const archive =
+    config.archive?.enabled === false
+      ? null
+      : createArchive({
+          dir: config.archive?.dir ?? undefined,
+          retentionDays: config.archive?.retentionDays,
+          flushMs: config.archive?.flushMs,
+        })
+  /** sessionId → 已归档条数（增量游标，避免重复写） */
+  const archivedCount = new Map()
+  /** sessionId → { project, device, actor }，每会话解析一次 */
+  const archiveIdentity = new Map()
+
+  function archiveContextOf(sessionId) {
+    let ctx = archiveIdentity.get(sessionId)
+    if (ctx === undefined) {
+      const cwd = sessionRoots.get(sessionId)
+      const resolved = typeof identity?.resolve === 'function' ? identity.resolve(cwd ?? null) : null
+      ctx = {
+        project: resolved?.project?.key ?? null,
+        device: resolved?.deviceId ?? null,
+        // actor 是 git email：默认不落盘，只有显式配置才带
+        actor: config.archive?.includeActor === true ? (resolved?.actor?.email ?? null) : null,
+      }
+      archiveIdentity.set(sessionId, ctx)
+    }
+    return ctx
+  }
+
+  /** 把某会话自上次以来新增的条目写进归档。失败只计数，绝不抛出。 */
+  function archiveSession(sessionId) {
+    if (archive === null || typeof sessionId !== 'string') return 0
+    const entries = store.entriesOf(sessionId)
+    if (entries === null || entries.length === 0) return 0
+    const from = archivedCount.get(sessionId) ?? 0
+    if (entries.length <= from) return 0
+    const ctx = { sessionId, title: titles.get(sessionId) ?? null, ...archiveContextOf(sessionId) }
+    let written = 0
+    try {
+      for (const entry of entries.slice(from)) {
+        archive.enqueue(archiveRecordOf(entry, ctx))
+        written += 1
+      }
+      archivedCount.set(sessionId, entries.length)
+    } catch {
+      // 归档失败不影响采集：下一轮再试
+    }
+    return written
+  }
+
+  // 每分钟补写一次：不等到 disposed，进程被杀最多丢一分钟
+  let archiveTimer = null
+  if (archive !== null) {
+    try {
+      archive.prune()
+    } catch {}
+    archiveTimer = setInterval(() => {
+      for (const id of store.sessionIds()) archiveSession(id)
+      archive.flush()
+    }, 60_000)
+    if (typeof archiveTimer.unref === 'function') archiveTimer.unref()
+  }
+
   const ledger = createLedger({
     store,
     pricing,
@@ -203,6 +269,10 @@ export function apply(ctx, rawConfig) {
     // 会话消失即释放内存：账本不跨会话累积，避免长期运行的内存增长
     publisher?.remove(id)
     // 按会话索引的状态必须一起释放，否则长跑进程里这几张 Map 只增不减
+    // 先把剩余条目并进归档，再释放内存——否则最后一个会话的尾巴会丢
+    archiveSession(id)
+    archivedCount.delete(id)
+    archiveIdentity.delete(id)
     guard.forget(id)
     ledger.forget(id)
     traceSink?.remove(id)
@@ -226,6 +296,8 @@ export function apply(ctx, rawConfig) {
     stats: () => ({ ...ledger.stats(), sessions: store.sessionCount }),
     // 面板诊断：面板读不到数据时，先看这里是 enabled 还是 dir 不对
     panel: publisher === null ? { enabled: false } : { enabled: true, dir: publisher.dir, stats: publisher.stats },
+    // 归档状态：写了几条、丢了几条、错了几次（面板/自查用）
+    archive: archive === null ? { enabled: false } : { enabled: true, dir: archive.dir, stats: archive.stats },
     // 费率来源与拒收明细：对外可查，避免"我改了价但数字没变"变成悬案
     pricing: pricingMeta,
     config,
@@ -244,10 +316,12 @@ export function apply(ctx, rawConfig) {
     // 幂等：宿主可能既跑 effect 清理又触发 dispose 事件，重复释放会二次 flush/close
     if (disposed) return
     disposed = true
+    if (archiveTimer !== null) clearInterval(archiveTimer)
+    archive?.dispose()
     publisher?.dispose()
     traceSink?.dispose()
   }
-  if (publisher !== null || traceSink !== null) {
+  if (publisher !== null || traceSink !== null || archive !== null) {
     if (typeof ctx.effect === 'function') ctx.effect(() => cleanup)
     else ctx.on('dispose', cleanup)
   }

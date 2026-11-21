@@ -37,6 +37,15 @@ export const DEFAULT_CONFIG = Object.freeze({
       maxBytes: 4194304, // 单文件 4MB 封顶
     },
   },
+  // 历史归档：会话结束（或每分钟）把账本追加到 ~/.dsh/ledger/archive/<日期>.jsonl。
+  // 只存体积与金额，不存任何对话内容；默认保留 90 天。没有它就没有"昨天花了多少"。
+  archive: {
+    enabled: true,
+    dir: null,            // null = ~/.dsh/ledger/archive
+    retentionDays: 90,
+    flushMs: 5000,
+    includeActor: false,  // true 才会把 git email 写进归档（团队对账用，默认不写）
+  },
   attribution: {
     toolOwners: {},      // 工具名 → 所属插件（唯一可得的归因依据，见 docs/spikes.md）
   },

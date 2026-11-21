@@ -233,6 +233,22 @@ window.__ModuleLoader__.load({
 - 读取：浏览器侧 `workspaceFiles` remote，相对路径 `stat` 换绝对路径再 `read`。
 - 打不开面板时先看 `ctx.ledger.panel`：`{enabled, dir, stats}`。
 
+## 历史归档与对账
+
+会话结束不再"人走账消"：账本会追加到 `~/.dsh/ledger/archive/2026-11-21.jsonl`（按天分片、默认保留 90 天）。
+一行一条调用，字段是 token 数与金额，**没有任何对话内容**。
+
+```bash
+# 和厂商账单对账：按天并排，给差异与差异率
+node scripts/reconcile.mjs --bill 账单.csv --from 2026-11-01 --to 2026-11-30 --out 报告.md
+```
+
+账单 CSV 只要有两列（日期 + 金额）就能读，中英文表头都认。报告会标出**未计价条数**——
+算不出来的部分绝不当 0 混进总额，否则差异率会假性变小。
+
+对账的商业用法见 [`docs/poc-reconcile-playbook.md`](docs/poc-reconcile-playbook.md)：
+2 周、3 家客户、零服务端，验证"团队愿不愿为对账付钱"。
+
 ## 面板状态总表（改 UI 前先看这个）
 
 `node scripts/render-states.mjs` 会把面板在 **7 个关键状态**下并排画出来：
@@ -464,6 +480,7 @@ dsh plugin add @lingda-ai/ledger
 | 开关 | 默认 | 说明 |
 |---|---|---|
 | `panel.enabled` | **`true`**（0.1.11 起） | 面板取数靠 Host 落盘快照。默认关会导致"装完打开面板看到没数据"，实测这是最大的劝退点；写的是工作区里 ≤256KB 的只读 JSON，不含对话内容，会话结束即删。不想留文件就显式关掉 |
+| `archive.enabled` | **`true`** | 历史归档：会话结束把账本追加到 `~/.dsh/ledger/archive/<日期>.jsonl`，默认保留 90 天。只存 token 数与金额，**不存任何对话内容**；`actor`（git email）默认不写 |
 | `trace.enabled` | `false` | 隐私优先：行为流水默认不记 |
 | `trace.file.enabled` | `false` | 写文件是二次副作用，要再开一层 |
 
