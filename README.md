@@ -1,5 +1,7 @@
 # @lingda-ai/ledger
 
+> 源码镜像：[GitHub](https://github.com/lingda-ai/dsh-plugin-ledger) · [Gitee](https://gitee.com/linzhengtong/dsh-plugin-ledger)
+
 DSH 右侧栏的**会话成本仪表**（生态发布名 `dsh-plugin-ledger`，中文名「账本」）。
 
 它回答三个问题，顺序很重要：
