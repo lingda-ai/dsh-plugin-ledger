@@ -13,7 +13,9 @@ const main = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
 const self = JSON.parse(await readFile(join(dest, 'package.json'), 'utf8'))
 
 // 1. 产物与文档（docs 只带 markdown，截图/预览 html 不进包体）
-for (const item of ['lib', 'LICENSE']) {
+//    README 也一起同步：npm 页面展示的是包内 README，不同步就会出现
+//    「仓库里换了说明、npm 上还是旧的那份」。
+for (const item of ['lib', 'LICENSE', 'README.md']) {
   await rm(join(dest, item), { recursive: true, force: true })
   await cp(join(root, item), join(dest, item), { recursive: true })
 }
