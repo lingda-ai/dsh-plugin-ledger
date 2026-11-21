@@ -137,6 +137,8 @@ export function apply(ctx, rawConfig) {
           dir: config.panel.dir,
           intervalMs: config.panel.intervalMs,
           maxBytes: config.panel.maxBytes,
+          // 窗口增量的小时数（默认 24）：塔台报告用它回答"这一段花了多少"
+          windowHours: config.panel.windowHours,
           rootOf: (sessionId) => sessionRoots.get(sessionId) ?? process.cwd(),
           // 预算读数：面板画进度条用，口径来自配置，不由前端推算
           budget: { limit: config.budget?.limit ?? null, currency: config.pricing?.currency ?? 'CNY' },

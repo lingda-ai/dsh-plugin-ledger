@@ -61,6 +61,7 @@ export const DEFAULT_CONFIG = Object.freeze({
     dir: '.dsh/ledger',   // 相对 process.cwd()；也可给绝对路径
     intervalMs: 3000,     // 同一会话两次落盘的最小间隔
     maxBytes: 262144,     // 超过则只写 totals + topSources
+    windowHours: 24,      // 快照里附带"最近 N 小时"的增量（0 = 不带）
   },
 })
 
