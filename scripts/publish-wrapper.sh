@@ -32,12 +32,12 @@ fi
 
 LOG="$(mktemp -t ledger-test)"
 echo "== 1/3 测试（全量）"
-if ! node --test test/*.test.mjs >"$LOG" 2>&1; then
+if ! node scripts/run-tests.mjs >"$LOG" 2>&1; then
   tail -25 "$LOG"
   echo "✗ 测试未通过，拒绝发布" >&2
   exit 1
 fi
-grep -E "^ℹ (tests|pass|fail) " "$LOG" | sed 's/^/  /'
+grep -E "^ℹ (tests|pass|fail) |^# 沙箱" "$LOG" | sed 's/^/  /'
 
 echo "== 2/3 重建 wrapper $VERSION（lib 同步 + client 按 wrapper 包名重建）"
 node scripts/build-bundle.mjs "$VERSION" | sed 's/^/  /'

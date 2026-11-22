@@ -26,8 +26,9 @@ jobs:
       - name: Install dev dependencies
         run: npm install --omit=peer --no-audit --no-fund --ignore-scripts
 
+      # 沙箱 env：测试不得依赖所在机器的 HOME / DSH_HOME（见 scripts/run-tests.mjs）
       - name: Unit tests
-        run: node --test test/*.test.mjs
+        run: node scripts/run-tests.mjs
 
       # 只在最新 LTS 上跑基准，避免不同机器的抖动造成噪声失败
       - name: Perf gate
