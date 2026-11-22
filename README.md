@@ -1,5 +1,7 @@
 # 账本 · Ledger
 
+[![ci](https://github.com/lingda-ai/dsh-plugin-ledger/actions/workflows/ci.yml/badge.svg)](https://github.com/lingda-ai/dsh-plugin-ledger/actions/workflows/ci.yml)
+
 DSH 右侧栏的**会话成本仪表**：这次会话花了多少、花在哪一步、还能问几次。
 
 > 安装包：`@lingda-ai/dsh-plugin-ledger` · 源码镜像：[GitHub](https://github.com/lingda-ai/dsh-plugin-ledger) · [Gitee](https://gitee.com/linzhengtong/dsh-plugin-ledger)

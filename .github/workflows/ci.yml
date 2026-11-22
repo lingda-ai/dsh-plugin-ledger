@@ -19,7 +19,13 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
-      # 零运行时依赖：不需要 npm install
+      # 运行时零依赖，但**测试需要 devDependencies**（react / react-dom 用来渲染面板产物）。
+      # 之前这里写着「不需要 npm install」，于是 client.test.mjs 与
+      # client-artifact-render.test.mjs 在 CI 上必挂（ERR_MODULE_NOT_FOUND: react）。
+      # --omit=peer：不把宿主包（@deepseek-ai/cordis、dsh-llm）拉进 CI。
+      - name: Install dev dependencies
+        run: npm install --omit=peer --no-audit --no-fund --ignore-scripts
+
       - name: Unit tests
         run: node --test test/*.test.mjs
 
