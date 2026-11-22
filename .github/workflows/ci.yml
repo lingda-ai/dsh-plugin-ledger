@@ -34,6 +34,16 @@ jobs:
         if: matrix.node == 22
         run: node --expose-gc scripts/bench.mjs --gate
 
-      # 外部运行时（@deepseek-ai/dsh-llm）在 CI 中不存在 → 自动 SKIP
+      # 退出码约定：0 通过 / 1 契约不符 / 2 本机没有 DSH 运行时（SKIP）。
+      # CI 里没有 @deepseek-ai/*，通常是 2 —— 把它当 SKIP，而不是失败；
+      # 但也不能当成通过：真正要求「必须跑过」的是发布闸门，不是这里。
       - name: DSH contract smoke
-        run: node scripts/smoke-dsh.mjs
+        run: |
+          set +e
+          node scripts/smoke-dsh.mjs
+          code=$?
+          if [ "$code" = "2" ]; then
+            echo "::notice::SKIP：CI 无 DSH 运行时（退出码 2）"
+            exit 0
+          fi
+          exit "$code"
