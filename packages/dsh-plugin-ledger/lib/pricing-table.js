@@ -35,6 +35,12 @@ export const BUILTIN_RATES = Object.freeze({
   // 兼容别名（官方页面脚注 (1)）
   'deepseek-chat': FLASH,
   'deepseek-reasoner': FLASH,
+  // **客户端上报的模型 id**（不是官方别名）：DSH 桌面实际报的是 `deepseek-flash`，
+  // 官方价目表里只有 `deepseek-v4-flash`。不映射的话，新用户开箱即用时每条调用都是
+  // unknown(no-rate)，面板全是"— no-rate"——功能像坏了，其实是缺一张映射。
+  // 按官方 v4-flash 同价计；若上游改了对应关系，请在 pricing.json 里覆盖。
+  'deepseek-flash': FLASH,
+  'deepseek-pro': PRO,
 })
 
 export const BUILTIN_SOURCE = 'https://api-docs.deepseek.com/zh-cn/quick_start/pricing'
