@@ -1,4 +1,5 @@
 import test from 'node:test'
+import { BUILTIN_RATES } from '../lib/pricing-table.js'
 import assert from 'node:assert/strict'
 import { createPricing } from '../lib/pricing.js'
 import { normalizeUsage } from '../lib/usage.js'
@@ -61,4 +62,14 @@ test('费率缺失时 unknown 不带 parts（不给半截数字）', () => {
   )
   assert.equal(cost.kind, 'unknown')
   assert.equal(cost.parts, undefined)
+})
+
+test('客户端上报的模型 id 也能算价（否则新用户面板全是 no-rate）', () => {
+  for (const id of ['deepseek-flash', 'deepseek-pro']) {
+    assert.ok(BUILTIN_RATES[id], id + ' 必须在内置表里')
+    assert.ok(BUILTIN_RATES[id].input > 0 && BUILTIN_RATES[id].output > 0, id + ' 的输入输出单价必须为正')
+  }
+  // 与官方 v4 同价（客户端 id 是映射，不是新价）
+  assert.equal(BUILTIN_RATES['deepseek-flash'].input, BUILTIN_RATES['deepseek-v4-flash'].input)
+  assert.equal(BUILTIN_RATES['deepseek-pro'].output, BUILTIN_RATES['deepseek-v4-pro'].output)
 })

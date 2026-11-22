@@ -159,7 +159,14 @@ test('插件级：会话销毁时把剩余条目并进归档（不人走账消�
       provide() {},
       tools: { register: () => () => {} },
     }
-    await apply(ctx, { archive: { dir, flushMs: 60_000 }, panel: { enabled: false }, trace: { enabled: false } })
+    await apply(ctx, {
+      archive: { dir, flushMs: 60_000 },
+      panel: { enabled: false },
+      trace: { enabled: false },
+      // 显式指向一个不存在的覆盖文件：否则这条测试会读开发者本机
+      // ~/.dsh/ledger/pricing.json，在 CI 上（没有该文件）必挂。
+      pricing: { file: join(dir, 'no-such-pricing.json') },
+    })
 
     const session = { id: 'session-e2e', header: { cwd: dir } }
     ctx.emit('session/event', session, {
